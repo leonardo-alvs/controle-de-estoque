@@ -331,7 +331,19 @@ def _load_table(table_name, columns, joins=None, order_by=None):
         sql += f" {joins}"
     if order_by:
         sql += f" ORDER BY {order_by}"
-    return pd.read_sql_query(text(sql), ENGINE)
+    df = pd.read_sql_query(text(sql), ENGINE)
+    # Garante que colunas renomeadas (AS) sejam preservadas mesmo em DataFrames vazios
+    if df.empty:
+        # Extrai nomes de colunas renomeadas (após AS)
+        col_names = []
+        for col in columns.split(","):
+            col = col.strip()
+            if " AS " in col.upper():
+                col_names.append(col.split(" AS ")[-1].strip())
+            else:
+                col_names.append(col.strip())
+        df = pd.DataFrame(columns=col_names)
+    return df
 
 
 def _sync_unidades():
