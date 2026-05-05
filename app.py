@@ -357,6 +357,28 @@ def init_db():
 
 init_db()
 
+
+def _sync_unidades():
+    """Sincroniza unidades de produtos para a tabela units no PostgreSQL."""
+    if st.session_state.get("_unid_synced"):
+        return
+    st.session_state["_unid_synced"] = True
+    try:
+        df_prod = load("prod")
+        df_unid = load("unid")
+        existing_upper = set(df_unid["Nome"].dropna().astype(str).str.upper().tolist())
+        to_add = []
+        if "Unidade" in df_prod.columns:
+            for u in df_prod["Unidade"].dropna().unique():
+                su = str(u).strip()
+                if su and su.upper() not in existing_upper:
+                    to_add.append(su.upper())
+                    existing_upper.add(su.upper())
+        for unit in to_add:
+            _insert_row("units", {"name": unit})
+    except Exception:
+        pass
+
 def load_usuarios():
     df = pd.read_sql_query(
         text(
