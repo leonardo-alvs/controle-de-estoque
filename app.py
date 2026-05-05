@@ -1352,6 +1352,9 @@ else:
 
             # Tabela de produtos com pesquisa dinâmica, alterar e excluir
             df_prod = load("prod")
+            for _col in ["Material", "Categoria", "Unidade"]:
+                if _col not in df_prod.columns:
+                    df_prod[_col] = ""
             if len(df_prod) > 0:
                 _sorted_mats = ["--- Mostrar Todos ---"] + sorted(
                     df_prod["Material"].dropna().unique().tolist())
