@@ -334,30 +334,6 @@ def _load_table(table_name, columns, joins=None, order_by=None):
     return pd.read_sql_query(text(sql), ENGINE)
 
 
-def init_db():
-    try:
-        df_units = pd.read_sql_query("SELECT id, name FROM units", ENGINE)
-        existing = set(df_units["name"].astype(str).str.upper().tolist())
-        missing = [u for u in _UNID_DEFAULTS if u.upper() not in existing]
-        if missing:
-            for unit in missing:
-                _insert_row("units", {"name": unit})
-        df_users = pd.read_sql_query("SELECT id FROM users", ENGINE)
-        if df_users.empty:
-            padrões = [
-                {"email": "admin", "password_hash": hashlib.sha256("gomap2025".encode()).hexdigest(), "name": "Administrador", "role": "admin", "active": True},
-                {"email": "andre", "password_hash": hashlib.sha256("andre123".encode()).hexdigest(), "name": "André Lyon", "role": "admin", "active": True},
-                {"email": "operador", "password_hash": hashlib.sha256("op2025".encode()).hexdigest(), "name": "Operador GOMAP", "role": "lancamentos", "active": True},
-            ]
-            for item in padrões:
-                _insert_row("users", item)
-    except SQLAlchemyError as exc:
-        st.error(f"Erro ao inicializar a base de dados: {exc}")
-        st.stop()
-
-init_db()
-
-
 def _sync_unidades():
     """Sincroniza unidades de produtos para a tabela units no PostgreSQL."""
     if st.session_state.get("_unid_synced"):
