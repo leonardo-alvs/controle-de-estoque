@@ -334,12 +334,15 @@ def _load_table(table_name, columns, joins=None, order_by=None):
     df = pd.read_sql_query(text(sql), ENGINE)
     # Garante que colunas renomeadas (AS) sejam preservadas mesmo em DataFrames vazios
     if df.empty:
+        import re
         # Extrai nomes de colunas renomeadas (após AS)
         col_names = []
         for col in columns.split(","):
             col = col.strip()
-            if " AS " in col.upper():
-                col_names.append(col.split(" AS ")[-1].strip())
+            # Split case-insensitive por " AS "
+            parts = re.split(r'\s+AS\s+', col, flags=re.IGNORECASE)
+            if len(parts) > 1:
+                col_names.append(parts[-1].strip())
             else:
                 col_names.append(col.strip())
         df = pd.DataFrame(columns=col_names)
@@ -354,7 +357,9 @@ def _sync_unidades():
     try:
         df_prod = load("prod")
         df_unid = load("unid")
-        existing_upper = set(df_unid["Nome"].dropna().astype(str).str.upper().tolist())
+        existing_upper = set()
+        if "Nome" in df_unid.columns:
+            existing_upper = set(df_unid["Nome"].dropna().astype(str).str.upper().tolist())
         to_add = []
         if "Unidade" in df_prod.columns:
             for u in df_prod["Unidade"].dropna().unique():
@@ -366,6 +371,29 @@ def _sync_unidades():
             _insert_row("units", {"name": unit})
     except Exception:
         pass
+
+def _get_column_safe(df, col_name, default=None):
+    """Extrai coluna de DataFrame com segurança, retornando lista vazia se coluna não existe."""
+    if col_name not in df.columns:
+        return [] if default is None else default
+    return df[col_name].dropna().unique().tolist()
+
+def _concat_safe(df_list):
+    """Concatena DataFrames garantindo que todos tenham as mesmas colunas."""
+    if not df_list:
+        return pd.DataFrame()
+    # Coleta todas as colunas de todos os DataFrames
+    all_cols = set()
+    for df in df_list:
+        all_cols.update(df.columns)
+    # Garante que todos os DataFrames tenham todas as colunas
+    aligned_dfs = []
+    for df in df_list:
+        for col in all_cols:
+            if col not in df.columns:
+                df[col] = None
+        aligned_dfs.append(df)
+    return pd.concat(aligned_dfs, ignore_index=True)
 
 def load_usuarios():
     df = pd.read_sql_query(
@@ -1143,7 +1171,7 @@ else:
                 if b_inc.button(f"✅ Incluir {tab_menu}", type="primary", use_container_width=True, key=f"inc_{tab_key}"):
                     if novo_val:
                         df = load(tab_key)
-                        save(pd.concat([df, pd.DataFrame([{tab_col: novo_val.strip()}])], ignore_index=True), tab_key)
+                        save(_concat_safe([df, pd.DataFrame([{tab_col: novo_val.strip()}])]), tab_key)
                         st.success(f"✅ '{novo_val.strip()}' adicionado!")
                         st.session_state[f"gen_form_key_{tab_key}"] = _gk + 1
                         st.rerun()
@@ -1253,7 +1281,7 @@ else:
                 if st.button("✅ Salvar Categoria", type="primary", use_container_width=True):
                     if nova_cat:
                         df = load("cat")
-                        save(pd.concat([df, pd.DataFrame([{"Nome": nova_cat.strip().upper()}])], ignore_index=True), "cat")
+                        save(_concat_safe([df, pd.DataFrame([{"Nome": nova_cat.strip().upper()}])]), "cat")
                         st.success(f"✅ Categoria '{nova_cat.upper()}' criada!")
                         st.rerun()
                     else:
@@ -1265,7 +1293,7 @@ else:
                 if st.button("✅ Salvar Unidade", type="primary", use_container_width=True):
                     if nova_un:
                         df = load("unid")
-                        save(pd.concat([df, pd.DataFrame([{"Nome": nova_un.strip().upper()}])], ignore_index=True), "unid")
+                        save(_concat_safe([df, pd.DataFrame([{"Nome": nova_un.strip().upper()}])]), "unid")
                         st.success(f"✅ Unidade '{nova_un.upper()}' criada!")
                         st.rerun()
                     else:
@@ -1277,7 +1305,7 @@ else:
                 if st.button("✅ Salvar Obra", type="primary", use_container_width=True):
                     if nova_ob:
                         df = load("obras")
-                        save(pd.concat([df, pd.DataFrame([{"Nome_Obra": nova_ob.strip().upper()}])], ignore_index=True), "obras")
+                        save(_concat_safe([df, pd.DataFrame([{"Nome_Obra": nova_ob.strip().upper()}])]), "obras")
                         st.success(f"✅ Obra '{nova_ob.upper()}' criada!")
                         st.rerun()
                     else:
@@ -1289,8 +1317,8 @@ else:
                 n_prod = st.text_input("Descrição do Material", key=f"prod_nome_{_pk}")
 
                 c1, c2 = st.columns(2)
-                cats = list(load("cat")["Nome"].dropna().unique())
-                uns = list(load("unid")["Nome"].dropna().unique())
+                cats = _get_column_safe(load("cat"), "Nome")
+                uns = _get_column_safe(load("unid"), "Nome")
                 cat_prod = c1.selectbox("Categoria", ["--- Selecione ---"] + cats)
                 un_prod = c2.selectbox("Unidade", sorted(uns) if uns else ["un"], key=f"prod_un_{_pk}")
 
@@ -1310,7 +1338,7 @@ else:
                     if n_prod and cat_prod != "--- Selecione ---":
                         df = load("prod")
                         novo = pd.DataFrame([{"Material": n_prod.strip().upper(), "Categoria": cat_prod, "Unidade": un_prod}])
-                        save(pd.concat([df, novo], ignore_index=True), "prod")
+                        save(_concat_safe([df, novo]), "prod")
                         st.success(f"✅ Produto '{n_prod.upper()}' cadastrado!")
                         st.session_state.prod_form_key = _pk + 1
                         st.rerun()
@@ -1344,8 +1372,8 @@ else:
                 if get_permissao(st.session_state.usuario_perfil, "excluir"):
                     if len(df_prod_s) > 0:
                         with st.expander("✏️ Alterar Produto"):
-                            cats_al = list(load("cat")["Nome"].dropna().unique())
-                            uns_al = ["un", "Lata", "Sc", "Kg", "m", "m²", "m³", "L", "pç", "cx"] + list(load("unid")["Nome"].dropna().unique())
+                            cats_al = _get_column_safe(load("cat"), "Nome")
+                            uns_al = ["un", "Lata", "Sc", "Kg", "m", "m²", "m³", "L", "pç", "cx"] + _get_column_safe(load("unid"), "Nome")
                             idx_alt = st.selectbox("Selecione o produto para alterar:", df_prod_s.index,
                                                    format_func=lambda i: df_prod.loc[i, "Material"], key="sel_alt_prod")
                             row_alt = df_prod.loc[idx_alt]
@@ -1435,7 +1463,7 @@ else:
                             "Observacao":      forn_obs.strip(),
                             "Data_Cadastro":   datetime.today().strftime("%Y-%m-%d"),
                         }])
-                        save(pd.concat([df, novo], ignore_index=True), "forn")
+                        save(_concat_safe([df, novo]), "forn")
                         st.success(f"✅ Fornecedor '{forn_nome.upper()}' cadastrado!")
                         st.session_state.forn_form_key = _fk + 1
                         st.rerun()
@@ -1764,7 +1792,7 @@ else:
                                 "Observacao": _obs_final,
                                 "Usuario": st.session_state.usuario_nome
                             }])
-                            save(pd.concat([df_mov, novo], ignore_index=True), "mov")
+                            save(_concat_safe([df_mov, novo]), "mov")
                             _local_ref = local_ajuste or destino_mov
                             st.success(f"✅ {tipo_mov} de {_qtd_final:.2f} {un_auto} de '{material_sel}' em '{_local_ref}' registrado!")
                             st.session_state.mov_form_key = _mk + 1
@@ -2470,7 +2498,7 @@ div[data-testid="stHorizontalBlock"] div[data-testid="stDateInput"] > label {
                     if st.button("✅ Salvar", type="primary", use_container_width=True, key="sv_eq"):
                         if novo_eq:
                             df = load("equip")
-                            save(pd.concat([df, pd.DataFrame([{"Nome_Equipamento": novo_eq.strip().upper()}])], ignore_index=True), "equip")
+                            save(_concat_safe([df, pd.DataFrame([{"Nome_Equipamento": novo_eq.strip().upper()}])]), "equip")
                             st.success(f"✅ '{novo_eq.upper()}' cadastrado!")
                             st.rerun()
 
@@ -2484,7 +2512,7 @@ div[data-testid="stHorizontalBlock"] div[data-testid="stDateInput"] > label {
                     if st.button("✅ Salvar", type="primary", use_container_width=True, key="sv_fn"):
                         if fn:
                             df = load("forn")
-                            save(pd.concat([df, pd.DataFrame([{"Nome_Fornecedor": fn.strip().upper(), "CNPJ": cnpj, "Telefone": tel, "Contato": contato}])], ignore_index=True), "forn")
+                            save(_concat_safe([df, pd.DataFrame([{"Nome_Fornecedor": fn.strip().upper(), "CNPJ": cnpj, "Telefone": tel, "Contato": contato}])]), "forn")
                             st.success(f"✅ '{fn.upper()}' cadastrado!")
                             st.rerun()
 
@@ -2494,7 +2522,7 @@ div[data-testid="stHorizontalBlock"] div[data-testid="stDateInput"] > label {
                     if st.button("✅ Salvar", type="primary", use_container_width=True, key="sv_ob"):
                         if ob:
                             df = load("obras")
-                            save(pd.concat([df, pd.DataFrame([{"Nome_Obra": ob.strip().upper()}])], ignore_index=True), "obras")
+                            save(_concat_safe([df, pd.DataFrame([{"Nome_Obra": ob.strip().upper()}])]), "obras")
                             st.success(f"✅ '{ob.upper()}' cadastrada!")
                             st.rerun()
 
@@ -2574,7 +2602,7 @@ div[data-testid="stHorizontalBlock"] div[data-testid="stDateInput"] > label {
                                 "Status": "Ativo",
                                 "Usuario": st.session_state.usuario_nome
                             }])
-                            save(pd.concat([df_loc, novo], ignore_index=True), "loc")
+                            save(_concat_safe([df_loc, novo]), "loc")
                             st.success(f"✅ Locação de '{loc_descricao}' registrada!")
                             st.rerun()
                     if bl2.button("❌ Limpar", use_container_width=True):
