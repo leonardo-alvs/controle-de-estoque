@@ -332,20 +332,28 @@ def _load_table(table_name, columns, joins=None, order_by=None):
     if order_by:
         sql += f" ORDER BY {order_by}"
     df = pd.read_sql_query(text(sql), ENGINE)
-    # Garante que colunas renomeadas (AS) sejam preservadas mesmo em DataFrames vazios
+    import re
+    # Extrai nomes de colunas renomeadas (após AS)
+    col_names = []
+    for col in columns.split(","):
+        col = col.strip()
+        parts = re.split(r'\s+AS\s+', col, flags=re.IGNORECASE)
+        if len(parts) > 1:
+            col_names.append(parts[-1].strip())
+        else:
+            col_names.append(col.strip())
     if df.empty:
-        import re
-        # Extrai nomes de colunas renomeadas (após AS)
-        col_names = []
-        for col in columns.split(","):
-            col = col.strip()
-            # Split case-insensitive por " AS "
-            parts = re.split(r'\s+AS\s+', col, flags=re.IGNORECASE)
-            if len(parts) > 1:
-                col_names.append(parts[-1].strip())
-            else:
-                col_names.append(col.strip())
         df = pd.DataFrame(columns=col_names)
+    else:
+        # Normaliza colunas retornadas pelo SQL para o caso esperado
+        renames = {}
+        for actual in df.columns:
+            for expected in col_names:
+                if actual.lower() == expected.lower():
+                    renames[actual] = expected
+                    break
+        if renames:
+            df = df.rename(columns=renames)
     return df
 
 
