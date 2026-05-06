@@ -429,6 +429,7 @@ def verificar_login(usuario, senha):
 
 
 def _build_db_record(row, cfg):
+    import numpy as np
     record = {}
     for app_col, db_col in cfg["cols"].items():
         if app_col not in row:
@@ -436,6 +437,12 @@ def _build_db_record(row, cfg):
         value = row[app_col]
         if pd.isna(value):
             value = None
+        elif isinstance(value, np.bool_):
+            value = bool(value)
+        elif isinstance(value, np.integer):
+            value = int(value)
+        elif isinstance(value, np.floating):
+            value = float(value)
         if db_col.endswith("_id"):
             record[db_col] = _resolve_fk(db_col, row)
         else:
@@ -2751,3 +2758,4 @@ div[data-testid="stHorizontalBlock"] div[data-testid="stDateInput"] > label {
             st.markdown("")
             if st.button("🏠 Voltar ao Painel", use_container_width=True, key="loc_voltar"):
                 ir_para("Início")
+
