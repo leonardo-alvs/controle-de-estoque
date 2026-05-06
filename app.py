@@ -2442,9 +2442,12 @@ div[data-testid="stHorizontalBlock"] div[data-testid="stDateInput"] > label {
                             "perfil": novo_perfil,
                             "ativo": True
                         }])
-                        save_usuarios(pd.concat([df_users, novo_reg], ignore_index=True))
-                        st.success(f"✅ Usuário '{novo_usuario}' criado com sucesso!")
-                        st.rerun()
+                        try:
+                            save_usuarios(pd.concat([df_users, novo_reg], ignore_index=True))
+                            st.success(f"✅ Usuário '{novo_usuario}' criado com sucesso!")
+                            st.rerun()
+                        except Exception as _e:
+                            st.error(f"Erro DB: {type(_e).__name__}: {_e}")
                 if b2.button("❌ Cancelar", use_container_width=True):
                     st.rerun()
                 if b3.button("🏠 Voltar ao Painel", use_container_width=True):
@@ -2758,4 +2761,3 @@ div[data-testid="stHorizontalBlock"] div[data-testid="stDateInput"] > label {
             st.markdown("")
             if st.button("🏠 Voltar ao Painel", use_container_width=True, key="loc_voltar"):
                 ir_para("Início")
-
