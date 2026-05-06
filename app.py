@@ -459,7 +459,9 @@ def _save_table(df, key):
     current_ids = pd.read_sql_query(text(f"SELECT id FROM {table}"), ENGINE)["id"].astype(str).tolist()
     keep_ids = set()
     for _, row in df_copy.iterrows():
-        row_id = str(row.get("id", "")).strip()
+        row_id = str(row.get("id", "") or "").strip()
+        if row_id.lower() in ("nan", "none"):
+            row_id = ""
         data = _build_db_record(row, cfg)
         if row_id and row_id in current_ids:
             _update_row(table, data, row_id)
@@ -2442,12 +2444,9 @@ div[data-testid="stHorizontalBlock"] div[data-testid="stDateInput"] > label {
                             "perfil": novo_perfil,
                             "ativo": True
                         }])
-                        try:
-                            save_usuarios(pd.concat([df_users, novo_reg], ignore_index=True))
-                            st.success(f"✅ Usuário '{novo_usuario}' criado com sucesso!")
-                            st.rerun()
-                        except Exception as _e:
-                            st.error(f"Erro DB: {type(_e).__name__}: {_e}")
+                        save_usuarios(pd.concat([df_users, novo_reg], ignore_index=True))
+                        st.success(f"✅ Usuário '{novo_usuario}' criado com sucesso!")
+                        st.rerun()
                 if b2.button("❌ Cancelar", use_container_width=True):
                     st.rerun()
                 if b3.button("🏠 Voltar ao Painel", use_container_width=True):
@@ -2761,3 +2760,4 @@ div[data-testid="stHorizontalBlock"] div[data-testid="stDateInput"] > label {
             st.markdown("")
             if st.button("🏠 Voltar ao Painel", use_container_width=True, key="loc_voltar"):
                 ir_para("Início")
+
