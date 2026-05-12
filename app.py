@@ -1502,6 +1502,25 @@ else:
                 )
                 sel_rows = event.selection.rows if hasattr(event, "selection") else []
 
+                # ── Exportar relação ──────────────────────────────────────
+                _df_exp = df_view_s[[tab_col]].reset_index(drop=True)
+                _titulo_exp = f"Relação de {tab_menu}"
+                _met_exp = {"Total": str(len(_df_exp))}
+                if REPORTLAB_OK:
+                    st.download_button(
+                        f"🖨️ Imprimir / Exportar PDF — {tab_menu}",
+                        gerar_pdf_relatorio(_titulo_exp, _df_exp, _met_exp),
+                        file_name=f"relacao_{tab_key}.pdf", mime="application/pdf",
+                        use_container_width=True, key=f"dl_pdf_{tab_key}"
+                    )
+                else:
+                    st.download_button(
+                        f"🖨️ Imprimir / Exportar HTML — {tab_menu}",
+                        gerar_html_relatorio(_titulo_exp, _df_exp, _met_exp),
+                        file_name=f"relacao_{tab_key}.html", mime="text/html",
+                        use_container_width=True, key=f"dl_html_{tab_key}"
+                    )
+
                 def _limpar_selecao():
                     st.session_state[f"df_ver_{tab_key}"] = _df_ver + 1
                     st.session_state.pop(f"busca_{tab_key}", None)
@@ -1632,7 +1651,7 @@ else:
                 if b_inc.button("✅ Incluir Produto", type="primary", use_container_width=True):
                     if n_prod and cat_prod != "--- Selecione ---":
                         df = load("prod")
-                        novo = pd.DataFrame([{"Material": n_prod.strip().upper(), "Categoria": cat_prod, "Unidade": un_prod}])
+                        novo = pd.DataFrame([{"Material": n_prod.strip(), "Categoria": cat_prod, "Unidade": un_prod}])
                         save(_concat_safe([df, novo]), "prod")
                         st.success(f"✅ Produto '{n_prod.upper()}' cadastrado!")
                         st.session_state.prod_form_key = _pk + 1
@@ -1665,36 +1684,76 @@ else:
                     st.markdown(f"**{len(df_prod)} produto(s) — ordenado(s) alfabeticamente**")
 
                 cols_exibir = [c for c in ["Material", "Categoria", "Unidade"] if c in df_prod_s.columns]
-                st.dataframe(df_prod_s[cols_exibir], width='stretch', hide_index=True)
+                _prod_tbl_v = st.session_state.get("_prod_tbl_v", 0)
+                _evt_prod = st.dataframe(
+                    df_prod_s[cols_exibir],
+                    width='stretch',
+                    hide_index=True,
+                    on_select="rerun",
+                    selection_mode="single-row",
+                    key=f"df_prod_tbl_{_prod_tbl_v}"
+                )
+                _prod_sel_rows = _evt_prod.selection.rows if hasattr(_evt_prod, "selection") else []
 
-                if get_permissao(st.session_state.usuario_perfil, "excluir"):
-                    if len(df_prod_s) > 0:
+                # ── Exportar relação de produtos ──────────────────────────
+                _df_exp_prod = df_prod_s[cols_exibir].reset_index(drop=True)
+                _met_prod = {"Total de Produtos": str(len(_df_exp_prod))}
+                if REPORTLAB_OK:
+                    st.download_button(
+                        "🖨️ Imprimir / Exportar PDF — Produtos",
+                        gerar_pdf_relatorio("Relação de Produtos", _df_exp_prod, _met_prod),
+                        file_name="relacao_produtos.pdf", mime="application/pdf",
+                        use_container_width=True, key="dl_pdf_prod"
+                    )
+                else:
+                    st.download_button(
+                        "🖨️ Imprimir / Exportar HTML — Produtos",
+                        gerar_html_relatorio("Relação de Produtos", _df_exp_prod, _met_prod),
+                        file_name="relacao_produtos.html", mime="text/html",
+                        use_container_width=True, key="dl_html_prod"
+                    )
+
+                def _limpar_prod_sel():
+                    st.session_state["_prod_tbl_v"] = _prod_tbl_v + 1
+
+                if _prod_sel_rows and get_permissao(st.session_state.usuario_perfil, "excluir"):
+                    _sel_display = _prod_sel_rows[0]
+                    _sel_orig_idx = df_prod_s.index[_sel_display]
+                    row_sel = df_prod.loc[_sel_orig_idx]
+                    _sel_mat = _sv(row_sel["Material"])
+
+                    st.markdown(
+                        f'<div translate="no" style="background-color:#dff0fb;padding:0.75rem 1rem;'
+                        f'border-radius:0.5rem;border-left:5px solid #2196F3;margin:0.5rem 0;font-size:1rem;">'
+                        f'📌 Selecionado: <strong>{_sel_mat}</strong></div>',
+                        unsafe_allow_html=True
+                    )
+
+                    _col_alt_p, _col_del_p = st.columns(2)
+
+                    with _col_alt_p:
                         with st.expander("✏️ Alterar Produto"):
                             _apv = st.session_state.get("_alt_prod_v", 0)
                             cats_al = _get_column_safe(load("cat"), "Nome")
                             uns_al = ["un", "Lata", "Sc", "Kg", "m", "m²", "m³", "L", "pç", "cx"] + _get_column_safe(load("unid"), "Nome")
-                            idx_alt = st.selectbox("Selecione o produto para alterar:", df_prod_s.index,
-                                                   format_func=lambda i: df_prod.loc[i, "Material"],
-                                                   key=f"sel_alt_prod_{_apv}")
-                            row_alt = df_prod.loc[idx_alt]
-                            alt_nome = st.text_input("Descrição do Material", value=_sv(row_alt["Material"]),
-                                                     key=f"alt_pnome_{idx_alt}_{_apv}")
+                            alt_nome = st.text_input("Descrição do Material", value=_sv(row_sel["Material"]),
+                                                     key=f"alt_pnome_{_sel_orig_idx}_{_apv}")
                             ac1, ac2 = st.columns(2)
                             _cat_opts = ["--- Selecione ---"] + cats_al
-                            _cat_cur = _sv(row_alt["Categoria"])
+                            _cat_cur = _sv(row_sel["Categoria"])
                             _cat_idx = _cat_opts.index(_cat_cur) if _cat_cur in _cat_opts else 0
                             alt_cat = ac1.selectbox("Categoria", _cat_opts, index=_cat_idx,
-                                                    key=f"alt_pcat_{idx_alt}_{_apv}")
-                            _un_cur = _sv(row_alt["Unidade"])
+                                                    key=f"alt_pcat_{_sel_orig_idx}_{_apv}")
+                            _un_cur = _sv(row_sel["Unidade"])
                             _un_idx = uns_al.index(_un_cur) if _un_cur in uns_al else 0
                             alt_un = ac2.selectbox("Unidade", uns_al, index=_un_idx,
-                                                   key=f"alt_pun_{idx_alt}_{_apv}")
+                                                   key=f"alt_pun_{_sel_orig_idx}_{_apv}")
                             if st.button("💾 Salvar Alteração", type="primary", use_container_width=True,
                                          key=f"save_alt_prod_{_apv}"):
                                 if alt_nome and alt_cat != "--- Selecione ---":
-                                    df_prod.loc[idx_alt, "Material"] = alt_nome.strip()
-                                    df_prod.loc[idx_alt, "Categoria"] = alt_cat
-                                    df_prod.loc[idx_alt, "Unidade"] = alt_un
+                                    df_prod.loc[_sel_orig_idx, "Material"] = alt_nome.strip()
+                                    df_prod.loc[_sel_orig_idx, "Categoria"] = alt_cat
+                                    df_prod.loc[_sel_orig_idx, "Unidade"] = alt_un
                                     try:
                                         save(df_prod, "prod")
                                         st.session_state["_alt_prod_v"] = _apv + 1
@@ -1702,18 +1761,25 @@ else:
                                     except Exception as _e_alt:
                                         st.error(f"❌ Erro ao salvar: {_e_alt}")
                                         st.stop()
+                                    _limpar_prod_sel()
                                     st.rerun()
                                 else:
                                     st.warning("Preencha todos os campos.")
 
+                    with _col_del_p:
                         with st.expander("🗑️ Excluir Produto"):
-                            idx_del = st.selectbox("Selecione o produto para excluir:", df_prod_s.index,
-                                                   format_func=lambda i: df_prod.loc[i, "Material"], key="del_sel_prod")
-                            if st.button("Confirmar Exclusão", key="del_prod"):
-                                df_prod = df_prod.drop(idx_del).reset_index(drop=True)
+                            st.warning(f"Excluir **{_sel_mat}**?")
+                            if st.button("🗑️ Confirmar Exclusão", type="primary",
+                                         use_container_width=True, key="del_prod_confirm"):
+                                df_prod = df_prod.drop(_sel_orig_idx).reset_index(drop=True)
                                 save(df_prod, "prod")
+                                _limpar_prod_sel()
                                 st.success("Produto excluído!")
                                 st.rerun()
+
+                elif not _prod_sel_rows and get_permissao(st.session_state.usuario_perfil, "excluir"):
+                    if len(df_prod_s) > 0:
+                        st.caption("💡 Clique em uma linha da tabela para selecionar e editar/excluir.")
                     else:
                         st.info("Nenhum produto encontrado para a pesquisa.")
 
@@ -1800,7 +1866,26 @@ else:
 
                 # Exibe colunas principais na tabela (evita tabela muito larga)
                 _cols_show_forn = [c for c in ["Nome_Fornecedor","CNPJ","Telefone","Celular","Email","Contato","Cidade","Estado","Data_Cadastro"] if c in df_forn_s.columns]
-                st.dataframe(fmt_datas(df_forn_s[_cols_show_forn], cols=["Data_Cadastro"]), width='stretch', hide_index=True)
+                _df_forn_show = fmt_datas(df_forn_s[_cols_show_forn], cols=["Data_Cadastro"])
+                st.dataframe(_df_forn_show, width='stretch', hide_index=True)
+
+                # ── Exportar relação de fornecedores ─────────────────────
+                _df_exp_forn = _df_forn_show.reset_index(drop=True)
+                _met_forn = {"Total de Fornecedores": str(len(_df_exp_forn))}
+                if REPORTLAB_OK:
+                    st.download_button(
+                        "🖨️ Imprimir / Exportar PDF — Fornecedores",
+                        gerar_pdf_relatorio("Relação de Fornecedores", _df_exp_forn, _met_forn),
+                        file_name="relacao_fornecedores.pdf", mime="application/pdf",
+                        use_container_width=True, key="dl_pdf_forn"
+                    )
+                else:
+                    st.download_button(
+                        "🖨️ Imprimir / Exportar HTML — Fornecedores",
+                        gerar_html_relatorio("Relação de Fornecedores", _df_exp_forn, _met_forn),
+                        file_name="relacao_fornecedores.html", mime="text/html",
+                        use_container_width=True, key="dl_html_forn"
+                    )
 
                 if get_permissao(st.session_state.usuario_perfil, "excluir"):
                     if len(df_forn_s) > 0:
