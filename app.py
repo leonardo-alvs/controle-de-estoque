@@ -2180,8 +2180,7 @@ else:
                                 _obs_final = f"ACERTO: {justificativa_mov} | Saldo: {_sc2:.2f} | Contagem: {contagem_real_val:.2f}"
 
                         if _gravar_ok:
-                            df_mov = load("mov")
-                            novo = pd.DataFrame([{
+                            novo_dict = {
                                 "Data": data_mov.strftime("%Y-%m-%d"),
                                 "Tipo": tipo_mov,
                                 "Material": material_sel,
@@ -2189,16 +2188,22 @@ else:
                                 "Unidade": un_auto,
                                 "Origem": _orig_final,
                                 "Destino": _dest_final,
-                                "Qtd": _qtd_final,
-                                "Valor_Unit": valor_unit if valor_unit > 0 else "",
-                                "Valor_Total": round(_qtd_final * valor_unit, 2) if valor_unit > 0 else "",
-                                "Fornecedor": forn_sel if tipo_mov == "Compra" else "",
-                                "Data_NF": data_nf_val.strftime("%Y-%m-%d") if tipo_mov == "Compra" and data_nf_val else "",
-                                "Num_NF": num_nf_val if tipo_mov == "Compra" else "",
+                                "Qtd": float(_qtd_final),
+                                "Valor_Unit": float(valor_unit) if valor_unit > 0 else None,
+                                "Valor_Total": float(round(_qtd_final * valor_unit, 2)) if valor_unit > 0 else None,
+                                "Fornecedor": forn_sel if tipo_mov == "Compra" else None,
+                                "Data_NF": data_nf_val.strftime("%Y-%m-%d") if tipo_mov == "Compra" and data_nf_val else None,
+                                "Num_NF": num_nf_val if tipo_mov == "Compra" else None,
                                 "Observacao": _obs_final,
                                 "Usuario": st.session_state.usuario_nome
-                            }])
-                            save(_concat_safe([df_mov, novo]), "mov")
+                            }
+                            try:
+                                _db_rec = _build_db_record(novo_dict, TABLE_CONFIG["mov"])
+                                _insert_row("stock_movements", _db_rec)
+                            except Exception as _e_grav:
+                                st.error(f"❌ Erro ao gravar lançamento: {_e_grav}")
+                                st.code(str(_db_rec) if '_db_rec' in dir() else str(novo_dict), language="python")
+                                st.stop()
                             _local_ref = local_ajuste or destino_mov
                             st.success(f"✅ {tipo_mov} de {_qtd_final:.2f} {un_auto} de '{material_sel}' em '{_local_ref}' registrado!")
                             st.session_state.mov_form_key = _mk + 1
@@ -3146,5 +3151,6 @@ div[data-testid="stHorizontalBlock"] div[data-testid="stDateInput"] > label {
             st.markdown("")
             if st.button("🏠 Voltar ao Painel", use_container_width=True, key="loc_voltar"):
                 ir_para("Início")
+
 
 
