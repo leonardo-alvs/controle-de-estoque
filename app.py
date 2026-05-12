@@ -20,6 +20,7 @@ except ImportError:
 
 try:
     import plotly.express as px
+    import plotly.graph_objects as go
     PLOTLY_OK = True
 except ImportError:
     PLOTLY_OK = False
@@ -803,6 +804,23 @@ st.markdown(f"""
             color: #718096;
         }}
 
+        /* ===== STATUS PILLS (estilo Jira) ===== */
+        .status-pill {{
+            display: inline-block;
+            padding: 2px 9px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 7px;
+        }}
+        .sp-ok      {{ background:#c6f6d5; color:#276749; }}
+        .sp-warn    {{ background:#fefcbf; color:#744210; }}
+        .sp-danger  {{ background:#fed7d7; color:#9b2c2c; }}
+        .sp-info    {{ background:#bee3f8; color:#2a4365; }}
+        .sp-neutral {{ background:#e2e8f0; color:#4a5568; }}
+
         /* ===== TELA DE LOGIN ===== */
         .login-box {{
             max-width: 420px;
@@ -1262,23 +1280,34 @@ else:
             loc_vencendo = int((_dias.between(0, 7)).sum())
 
         # ── Metric cards ────────────────────────────────────────────────
-        def _mc(icon, value, label, color=None, badge=None):
+        def _mc(icon, value, label, color=None, badge=None, status=None, st_type="neutral"):
             c = color or AZUL_GOMAP
             b = f'<div class="metric-badge">{badge}</div>' if badge else ""
+            s = (f'<div class="status-pill sp-{st_type}">{status}</div>'
+                 if status else "")
             return (f'<div class="metric-card" style="border-top-color:{c};">'
                     f'{b}<div class="metric-icon">{icon}</div>'
                     f'<div class="metric-value" style="color:{c};">{value}</div>'
-                    f'<div class="metric-label">{label}</div></div>')
+                    f'<div class="metric-label">{label}</div>{s}</div>')
 
-        _loc_color = "#e53e3e" if loc_vencendo > 0 else AZUL_GOMAP
+        _loc_color = "#e53e3e" if loc_vencendo > 0 else "#38a169"
+        _saldo_color = "#e53e3e" if saldo < 0 else AZUL_CLARO
+        _saldo_st = ("NEGATIVO", "danger") if saldo < 0 else ("POSITIVO", "ok")
+        _loc_st = ("VENCENDO", "danger") if loc_vencendo > 0 else ("EM DIA", "ok")
         m1, m2, m3, m4, m5 = st.columns(5)
-        m1.markdown(_mc("📦", len(df_prod),   "Produtos"),      unsafe_allow_html=True)
-        m2.markdown(_mc("🏗️", len(df_obras),  "Obras"),         unsafe_allow_html=True)
-        m3.markdown(_mc("📋", len(df_mov),    "Lançamentos"),   unsafe_allow_html=True)
-        m4.markdown(_mc("📊", f"{saldo:.0f}", "Saldo Geral",    color=AZUL_CLARO), unsafe_allow_html=True)
+        m1.markdown(_mc("📦", len(df_prod),   "Produtos",
+                        status="CADASTROS", st_type="info"),          unsafe_allow_html=True)
+        m2.markdown(_mc("🏗️", len(df_obras),  "Obras",
+                        status="ATIVO", st_type="ok"),                unsafe_allow_html=True)
+        m3.markdown(_mc("📋", len(df_mov),    "Lançamentos",
+                        status="HISTÓRICO", st_type="neutral"),       unsafe_allow_html=True)
+        m4.markdown(_mc("📊", f"{saldo:.0f}", "Saldo Geral",
+                        color=_saldo_color,
+                        status=_saldo_st[0], st_type=_saldo_st[1]),  unsafe_allow_html=True)
         m5.markdown(_mc("🔑", loc_ativas,     "Locações Ativas",
                         color=_loc_color,
-                        badge=loc_vencendo if loc_vencendo > 0 else None),
+                        badge=loc_vencendo if loc_vencendo > 0 else None,
+                        status=_loc_st[0], st_type=_loc_st[1]),
                     unsafe_allow_html=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
@@ -1307,7 +1336,7 @@ else:
                     ir_para(_page)
 
         # ── Gráficos Plotly ──────────────────────────────────────────────
-        if PLOTLY_OK and len(df_mov) > 0:
+        if PLOTLY_OK:
             st.markdown("<br>", unsafe_allow_html=True)
             _CORES = {
                 "Compra":       "#1a365d",
@@ -1315,50 +1344,92 @@ else:
                 "Saída":        "#e53e3e",
                 "Transferência":"#d69e2e",
             }
-            gcol_l, gcol_r = st.columns(2)
+            gcol_l, gcol_m, gcol_r = st.columns([4, 4, 3])
 
             with gcol_l:
-                st.markdown("**📊 Distribuição por Tipo de Movimentação**")
-                _df_tipo = df_mov.groupby("Tipo")["Qtd"].sum().reset_index()
-                _df_tipo.columns = ["Tipo", "Quantidade"]
-                _fig_donut = px.pie(
-                    _df_tipo, values="Quantidade", names="Tipo",
-                    hole=0.5, color="Tipo", color_discrete_map=_CORES,
-                )
-                _fig_donut.update_layout(
-                    margin=dict(t=10, b=30, l=0, r=0), height=270,
-                    legend=dict(orientation="h", y=-0.18, x=0.5, xanchor="center"),
-                    paper_bgcolor="rgba(0,0,0,0)",
-                )
-                _fig_donut.update_traces(textposition="inside", textinfo="percent+label")
-                st.plotly_chart(_fig_donut, use_container_width=True)
+                st.markdown("**📊 Distribuição por Tipo**")
+                if len(df_mov) > 0:
+                    _df_tipo = df_mov.groupby("Tipo")["Qtd"].sum().reset_index()
+                    _df_tipo.columns = ["Tipo", "Quantidade"]
+                    _fig_donut = px.pie(
+                        _df_tipo, values="Quantidade", names="Tipo",
+                        hole=0.55, color="Tipo", color_discrete_map=_CORES,
+                    )
+                    _fig_donut.update_layout(
+                        margin=dict(t=10, b=30, l=0, r=0), height=280,
+                        legend=dict(orientation="h", y=-0.18, x=0.5, xanchor="center"),
+                        paper_bgcolor="rgba(0,0,0,0)",
+                    )
+                    _fig_donut.update_traces(textposition="inside", textinfo="percent+label")
+                    st.plotly_chart(_fig_donut, use_container_width=True)
+                else:
+                    st.info("Sem movimentações registradas.")
+
+            with gcol_m:
+                st.markdown("**📈 Volume — Últimos 6 Meses**")
+                if len(df_mov) > 0:
+                    _df_m = df_mov.copy()
+                    _df_m["Data"] = pd.to_datetime(_df_m["Data"], errors="coerce")
+                    _df_m = _df_m.dropna(subset=["Data"])
+                    _hoje6 = pd.Timestamp(datetime.today().date())
+                    _df_m = _df_m[_df_m["Data"] >= _hoje6 - pd.DateOffset(months=6)]
+                    if len(_df_m) > 0:
+                        _df_m["Mês"] = _df_m["Data"].dt.to_period("M").astype(str)
+                        _df_mensal = _df_m.groupby(["Mês", "Tipo"])["Qtd"].sum().reset_index()
+                        _df_mensal.columns = ["Mês", "Tipo", "Quantidade"]
+                        _fig_bar = px.bar(
+                            _df_mensal, x="Mês", y="Quantidade", color="Tipo",
+                            color_discrete_map=_CORES, barmode="stack",
+                        )
+                        _fig_bar.update_layout(
+                            margin=dict(t=10, b=30, l=0, r=0), height=280,
+                            legend=dict(orientation="h", y=-0.28, x=0.5, xanchor="center"),
+                            paper_bgcolor="rgba(0,0,0,0)",
+                            plot_bgcolor="rgba(0,0,0,0)",
+                            xaxis=dict(showgrid=False),
+                            yaxis=dict(gridcolor="rgba(0,0,0,0.06)"),
+                        )
+                        st.plotly_chart(_fig_bar, use_container_width=True)
+                    else:
+                        st.info("Sem movimentações nos últimos 6 meses.")
+                else:
+                    st.info("Sem movimentações registradas.")
 
             with gcol_r:
-                st.markdown("**📈 Volume dos Últimos 6 Meses**")
-                _df_m = df_mov.copy()
-                _df_m["Data"] = pd.to_datetime(_df_m["Data"], errors="coerce")
-                _df_m = _df_m.dropna(subset=["Data"])
-                _hoje6 = pd.Timestamp(datetime.today().date())
-                _df_m = _df_m[_df_m["Data"] >= _hoje6 - pd.DateOffset(months=6)]
-                if len(_df_m) > 0:
-                    _df_m["Mês"] = _df_m["Data"].dt.to_period("M").astype(str)
-                    _df_mensal = _df_m.groupby(["Mês", "Tipo"])["Qtd"].sum().reset_index()
-                    _df_mensal.columns = ["Mês", "Tipo", "Quantidade"]
-                    _fig_bar = px.bar(
-                        _df_mensal, x="Mês", y="Quantidade", color="Tipo",
-                        color_discrete_map=_CORES, barmode="group",
-                    )
-                    _fig_bar.update_layout(
-                        margin=dict(t=10, b=30, l=0, r=0), height=270,
-                        legend=dict(orientation="h", y=-0.28, x=0.5, xanchor="center"),
-                        paper_bgcolor="rgba(0,0,0,0)",
-                        plot_bgcolor="rgba(0,0,0,0)",
-                        xaxis=dict(showgrid=False),
-                        yaxis=dict(gridcolor="rgba(0,0,0,0.06)"),
-                    )
-                    st.plotly_chart(_fig_bar, use_container_width=True)
-                else:
-                    st.info("Sem movimentações nos últimos 6 meses para exibir.")
+                st.markdown("**🔑 Locações — Risco de Vencimento**")
+                _max_gauge = max(loc_ativas, 1)
+                _pct_venc = round(loc_vencendo / _max_gauge * 100)
+                _gauge_bar = ("#e53e3e" if _pct_venc > 50
+                              else "#d69e2e" if _pct_venc > 20
+                              else "#38a169")
+                _fig_gauge = go.Figure(go.Indicator(
+                    mode="gauge+number",
+                    value=loc_vencendo,
+                    number={"suffix": f"/{loc_ativas}", "font": {"size": 26, "color": _gauge_bar}},
+                    title={"text": "Vencendo em 7 dias", "font": {"size": 12, "color": "#4a5568"}},
+                    gauge={
+                        "axis": {"range": [0, _max_gauge], "tickwidth": 1,
+                                 "tickcolor": "#718096", "tickfont": {"size": 10}},
+                        "bar": {"color": _gauge_bar, "thickness": 0.28},
+                        "bgcolor": "white",
+                        "borderwidth": 0,
+                        "steps": [
+                            {"range": [0, _max_gauge * 0.3], "color": "#c6f6d5"},
+                            {"range": [_max_gauge * 0.3, _max_gauge * 0.7], "color": "#fefcbf"},
+                            {"range": [_max_gauge * 0.7, _max_gauge], "color": "#fed7d7"},
+                        ],
+                        "threshold": {
+                            "line": {"color": "#c53030", "width": 3},
+                            "thickness": 0.8,
+                            "value": loc_vencendo,
+                        },
+                    },
+                ))
+                _fig_gauge.update_layout(
+                    margin=dict(t=50, b=10, l=20, r=20), height=280,
+                    paper_bgcolor="rgba(0,0,0,0)",
+                )
+                st.plotly_chart(_fig_gauge, use_container_width=True)
 
         # ── Últimos Lançamentos ──────────────────────────────────────────
         if len(df_mov) > 0:
@@ -1599,31 +1670,37 @@ else:
                 if get_permissao(st.session_state.usuario_perfil, "excluir"):
                     if len(df_prod_s) > 0:
                         with st.expander("✏️ Alterar Produto"):
+                            _apv = st.session_state.get("_alt_prod_v", 0)
                             cats_al = _get_column_safe(load("cat"), "Nome")
                             uns_al = ["un", "Lata", "Sc", "Kg", "m", "m²", "m³", "L", "pç", "cx"] + _get_column_safe(load("unid"), "Nome")
                             idx_alt = st.selectbox("Selecione o produto para alterar:", df_prod_s.index,
-                                                   format_func=lambda i: df_prod.loc[i, "Material"], key="sel_alt_prod")
+                                                   format_func=lambda i: df_prod.loc[i, "Material"],
+                                                   key=f"sel_alt_prod_{_apv}")
                             row_alt = df_prod.loc[idx_alt]
                             alt_nome = st.text_input("Descrição do Material", value=_sv(row_alt["Material"]),
-                                                     key=f"alt_pnome_{idx_alt}")
+                                                     key=f"alt_pnome_{idx_alt}_{_apv}")
                             ac1, ac2 = st.columns(2)
                             _cat_opts = ["--- Selecione ---"] + cats_al
                             _cat_cur = _sv(row_alt["Categoria"])
                             _cat_idx = _cat_opts.index(_cat_cur) if _cat_cur in _cat_opts else 0
-                            alt_cat = ac1.selectbox("Categoria", _cat_opts, index=_cat_idx, key=f"alt_pcat_{idx_alt}")
+                            alt_cat = ac1.selectbox("Categoria", _cat_opts, index=_cat_idx,
+                                                    key=f"alt_pcat_{idx_alt}_{_apv}")
                             _un_cur = _sv(row_alt["Unidade"])
                             _un_idx = uns_al.index(_un_cur) if _un_cur in uns_al else 0
-                            alt_un = ac2.selectbox("Unidade", uns_al, index=_un_idx, key=f"alt_pun_{idx_alt}")
-                            if st.button("💾 Salvar Alteração", type="primary", use_container_width=True, key="save_alt_prod"):
+                            alt_un = ac2.selectbox("Unidade", uns_al, index=_un_idx,
+                                                   key=f"alt_pun_{idx_alt}_{_apv}")
+                            if st.button("💾 Salvar Alteração", type="primary", use_container_width=True,
+                                         key=f"save_alt_prod_{_apv}"):
                                 if alt_nome and alt_cat != "--- Selecione ---":
-                                    df_prod.loc[idx_alt, "Material"] = alt_nome.strip().upper()
+                                    df_prod.loc[idx_alt, "Material"] = alt_nome.strip()
                                     df_prod.loc[idx_alt, "Categoria"] = alt_cat
                                     df_prod.loc[idx_alt, "Unidade"] = alt_un
                                     try:
                                         save(df_prod, "prod")
-                                        st.toast(f"✅ Produto '{alt_nome.strip().upper()}' alterado!", icon="✅")
+                                        st.session_state["_alt_prod_v"] = _apv + 1
+                                        st.toast(f"✅ '{alt_nome.strip()}' alterado com sucesso!", icon="✅")
                                     except Exception as _e_alt:
-                                        st.error(f"❌ Erro ao salvar alteração: {_e_alt}")
+                                        st.error(f"❌ Erro ao salvar: {_e_alt}")
                                         st.stop()
                                     st.rerun()
                                 else:
