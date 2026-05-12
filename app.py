@@ -1619,8 +1619,12 @@ else:
                                     df_prod.loc[idx_alt, "Material"] = alt_nome.strip().upper()
                                     df_prod.loc[idx_alt, "Categoria"] = alt_cat
                                     df_prod.loc[idx_alt, "Unidade"] = alt_un
-                                    save(df_prod, "prod")
-                                    st.success("✅ Produto alterado com sucesso!")
+                                    try:
+                                        save(df_prod, "prod")
+                                        st.toast(f"✅ Produto '{alt_nome.strip().upper()}' alterado!", icon="✅")
+                                    except Exception as _e_alt:
+                                        st.error(f"❌ Erro ao salvar alteração: {_e_alt}")
+                                        st.stop()
                                     st.rerun()
                                 else:
                                     st.warning("Preencha todos os campos.")
