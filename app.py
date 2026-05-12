@@ -1431,12 +1431,19 @@ else:
                 )
                 st.plotly_chart(_fig_gauge, use_container_width=True)
 
-        # ── Últimos Lançamentos ──────────────────────────────────────────
+        # ── Movimentações dos Últimos 3 Dias ─────────────────────────────
         if len(df_mov) > 0:
             st.divider()
-            st.markdown("**📋 Últimos Lançamentos**")
-            st.dataframe(fmt_datas(df_mov.tail(10).iloc[::-1]),
-                         use_container_width=True, hide_index=True)
+            _df_mov3 = df_mov.copy()
+            _df_mov3["Data"] = pd.to_datetime(_df_mov3["Data"], errors="coerce")
+            _hoje3 = pd.Timestamp(datetime.today().date())
+            _df_mov3 = _df_mov3[_df_mov3["Data"] >= _hoje3 - pd.Timedelta(days=3)]
+            _df_mov3 = _df_mov3.sort_values("Data", ascending=False)
+            st.markdown(f"**📋 Movimentações dos Últimos 3 Dias** — {len(_df_mov3)} lançamento(s)")
+            if len(_df_mov3) > 0:
+                st.dataframe(fmt_datas(_df_mov3), use_container_width=True, hide_index=True)
+            else:
+                st.info("Nenhuma movimentação registrada nos últimos 3 dias.")
 
 
     # ══════════════════════════════════════════════════════
@@ -1755,6 +1762,11 @@ else:
                                     df_prod.loc[_sel_orig_idx, "Material"] = alt_nome.strip()
                                     df_prod.loc[_sel_orig_idx, "Categoria"] = alt_cat
                                     df_prod.loc[_sel_orig_idx, "Unidade"] = alt_un
+                                    # Limpa FKs antigos para forçar re-resolução pelo nome em _resolve_fk
+                                    if "category_id" in df_prod.columns:
+                                        df_prod.loc[_sel_orig_idx, "category_id"] = None
+                                    if "unit_id" in df_prod.columns:
+                                        df_prod.loc[_sel_orig_idx, "unit_id"] = None
                                     try:
                                         save(df_prod, "prod")
                                         st.session_state["_alt_prod_v"] = _apv + 1
@@ -3134,6 +3146,5 @@ div[data-testid="stHorizontalBlock"] div[data-testid="stDateInput"] > label {
             st.markdown("")
             if st.button("🏠 Voltar ao Painel", use_container_width=True, key="loc_voltar"):
                 ir_para("Início")
-
 
 
