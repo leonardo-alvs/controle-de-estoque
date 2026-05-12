@@ -1631,9 +1631,9 @@ else:
                 n_prod = st.text_input("Descrição do Material", key=f"prod_nome_{_pk}")
 
                 c1, c2 = st.columns(2)
-                cats = _get_column_safe(load("cat"), "Nome")
+                cats = sorted(_get_column_safe(load("cat"), "Nome"))
                 uns = _get_column_safe(load("unid"), "Nome")
-                cat_prod = c1.selectbox("Categoria", ["--- Selecione ---"] + cats)
+                cat_prod = c1.selectbox("Categoria", ["--- Selecione ---"] + cats, key=f"prod_cat_{_pk}")
                 un_prod = c2.selectbox("Unidade", sorted(uns) if uns else ["un"], key=f"prod_un_{_pk}")
 
                 # Botões de cadastro rápido (abrem popup sem perder dados)
@@ -3133,5 +3133,6 @@ div[data-testid="stHorizontalBlock"] div[data-testid="stDateInput"] > label {
             st.markdown("")
             if st.button("🏠 Voltar ao Painel", use_container_width=True, key="loc_voltar"):
                 ir_para("Início")
+
 
 
