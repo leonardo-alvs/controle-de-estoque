@@ -1595,8 +1595,8 @@ else:
                 if st.button("✅ Salvar Categoria", type="primary", use_container_width=True):
                     if nova_cat:
                         df = load("cat")
-                        save(_concat_safe([df, pd.DataFrame([{"Nome": nova_cat.strip().upper()}])]), "cat")
-                        st.success(f"✅ Categoria '{nova_cat.upper()}' criada!")
+                        save(_concat_safe([df, pd.DataFrame([{"Nome": nova_cat.strip()}])]), "cat")
+                        st.success(f"✅ Categoria '{nova_cat.strip()}' criada!")
                         st.rerun()
                     else:
                         st.warning("Digite o nome da categoria.")
@@ -1734,8 +1734,9 @@ else:
                     with _col_alt_p:
                         with st.expander("✏️ Alterar Produto"):
                             _apv = st.session_state.get("_alt_prod_v", 0)
-                            cats_al = _get_column_safe(load("cat"), "Nome")
-                            uns_al = ["un", "Lata", "Sc", "Kg", "m", "m²", "m³", "L", "pç", "cx"] + _get_column_safe(load("unid"), "Nome")
+                            cats_al = sorted(_get_column_safe(load("cat"), "Nome"))
+                            _db_uns_al = sorted(_get_column_safe(load("unid"), "Nome"))
+                            uns_al = _db_uns_al if _db_uns_al else ["un"]
                             alt_nome = st.text_input("Descrição do Material", value=_sv(row_sel["Material"]),
                                                      key=f"alt_pnome_{_sel_orig_idx}_{_apv}")
                             ac1, ac2 = st.columns(2)
