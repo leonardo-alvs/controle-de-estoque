@@ -266,25 +266,35 @@ def _get_user_id(user_value):
         return str(result) if result else None
 
 
+def _fk_valido(v):
+    """Retorna True se v é um ID válido (não None, não vazio, não NaN)."""
+    if v is None or v == "":
+        return False
+    try:
+        return not pd.isna(v)
+    except TypeError:
+        return True
+
+
 def _resolve_fk(db_col, row):
     if db_col == "category_id":
-        if row.get("category_id") not in (None, "", float("nan")):
+        if _fk_valido(row.get("category_id")):
             return row.get("category_id")
         return _get_or_create_id("categories", "name", row.get("Categoria"))
     if db_col == "unit_id":
-        if row.get("unit_id") not in (None, "", float("nan")):
+        if _fk_valido(row.get("unit_id")):
             return row.get("unit_id")
         return _get_or_create_id("units", "name", row.get("Unidade"))
     if db_col == "supplier_id":
-        if row.get("supplier_id") not in (None, "", float("nan")):
+        if _fk_valido(row.get("supplier_id")):
             return row.get("supplier_id")
         return _get_or_create_id("suppliers", "name", row.get("Fornecedor"), fallback_columns={"email": str(row.get("Fornecedor", "")).strip()})
     if db_col == "project_id":
-        if row.get("project_id") not in (None, "", float("nan")):
+        if _fk_valido(row.get("project_id")):
             return row.get("project_id")
         return _get_or_create_id("projects", "name", row.get("Obra"))
     if db_col == "product_id":
-        if row.get("product_id") not in (None, "", float("nan")):
+        if _fk_valido(row.get("product_id")):
             return row.get("product_id")
         return _get_or_create_id("products", "name", row.get("Material"))
     if db_col == "created_by":
@@ -2957,4 +2967,5 @@ div[data-testid="stHorizontalBlock"] div[data-testid="stDateInput"] > label {
             st.markdown("")
             if st.button("🏠 Voltar ao Painel", use_container_width=True, key="loc_voltar"):
                 ir_para("Início")
+
 
