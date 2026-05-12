@@ -460,7 +460,7 @@ def _build_db_record(row, cfg):
             value = int(value)
         elif isinstance(value, np.floating):
             value = float(value)
-        if db_col.endswith("_id"):
+        if db_col.endswith("_id") or db_col == "created_by":
             record[db_col] = _resolve_fk(db_col, row)
         else:
             record[db_col] = value
@@ -3151,6 +3151,7 @@ div[data-testid="stHorizontalBlock"] div[data-testid="stDateInput"] > label {
             st.markdown("")
             if st.button("🏠 Voltar ao Painel", use_container_width=True, key="loc_voltar"):
                 ir_para("Início")
+
 
 
 
