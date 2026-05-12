@@ -18,6 +18,12 @@ try:
 except ImportError:
     REPORTLAB_OK = False
 
+try:
+    import plotly.express as px
+    PLOTLY_OK = True
+except ImportError:
+    PLOTLY_OK = False
+
 # --- 1. CONFIGURAÇÃO E ESTÉTICA GOMAP ---
 st.set_page_config(page_title="GOMAP Engenharia", layout="wide", page_icon="🏗️")
 
@@ -676,20 +682,115 @@ st.markdown(f"""
             object-fit: contain;
         }}
 
-        /* ===== CARDS DO PAINEL ===== */
-        .card-painel {{
-            background-color: white;
-            padding: 22px 16px;
-            border-radius: 10px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-            border-top: 4px solid {AZUL_GOMAP};
-            text-align: center;
-            margin-bottom: 10px;
-            color: {AZUL_GOMAP};
-            min-height: 100px;
+        /* ===== DASHBOARD — HEADER DE SAUDAÇÃO ===== */
+        .dash-header {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 20px;
+            background: linear-gradient(135deg, {AZUL_GOMAP} 0%, {AZUL_CLARO} 100%);
+            border-radius: 12px;
+            margin-bottom: 18px;
         }}
-        .card-painel b {{
-            font-size: 16px;
+        .dash-greeting {{
+            color: white;
+            font-size: 21px;
+            font-weight: 700;
+        }}
+        .dash-date {{
+            color: rgba(255,255,255,0.82);
+            font-size: 13px;
+            margin-top: 3px;
+        }}
+        .dash-subtitle {{
+            color: rgba(255,255,255,0.7);
+            font-size: 13px;
+            text-align: right;
+            line-height: 1.5;
+        }}
+
+        /* ===== METRIC CARDS ===== */
+        .metric-card {{
+            background: white;
+            border-radius: 12px;
+            padding: 16px 12px;
+            text-align: center;
+            border-top: 4px solid {AZUL_GOMAP};
+            box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+            margin-bottom: 10px;
+            position: relative;
+            min-height: 118px;
+        }}
+        .metric-badge {{
+            position: absolute;
+            top: -9px;
+            right: -9px;
+            background: #e53e3e;
+            color: white;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            font-size: 11px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+        }}
+        .metric-icon {{
+            font-size: 26px;
+            margin-bottom: 4px;
+        }}
+        .metric-value {{
+            font-size: 30px;
+            font-weight: 800;
+            line-height: 1;
+        }}
+        .metric-label {{
+            font-size: 11px;
+            color: #718096;
+            margin-top: 5px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+        }}
+
+        /* ===== ACTION CARDS ===== */
+        .action-card {{
+            background: white;
+            border-radius: 12px;
+            padding: 18px 16px 14px 16px;
+            border-left: 5px solid {AZUL_GOMAP};
+            box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+            margin-bottom: 8px;
+            position: relative;
+            min-height: 108px;
+        }}
+        .action-alert {{
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #e53e3e;
+            color: white;
+            border-radius: 10px;
+            padding: 2px 8px;
+            font-size: 10px;
+            font-weight: bold;
+        }}
+        .action-icon {{
+            font-size: 26px;
+            margin-bottom: 5px;
+        }}
+        .action-title {{
+            font-size: 13px;
+            font-weight: 800;
+            margin-bottom: 3px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }}
+        .action-subtitle {{
+            font-size: 11px;
+            color: #718096;
         }}
 
         /* ===== TELA DE LOGIN ===== */
@@ -1113,52 +1214,148 @@ else:
     #              PÁGINA: PAINEL PRINCIPAL
     # ══════════════════════════════════════════════════════
     if st.session_state.pagina == "Início":
-        st.subheader("🏠 Painel Principal")
+        # ── Saudação personalizada ──────────────────────────────────────
+        _hora = datetime.now().hour
+        _saudacao = "Bom dia" if _hora < 12 else ("Boa tarde" if _hora < 18 else "Boa noite")
+        _data_fmt = datetime.today().strftime("%d/%m/%Y  —  %H:%M")
+        _usr_nome = st.session_state.get("usuario_nome", "")
+        st.markdown(f"""
+        <div class="dash-header">
+            <div>
+                <div class="dash-greeting">{_saudacao}, <b>{_usr_nome}</b>! 👋</div>
+                <div class="dash-date">📅 {_data_fmt}</div>
+            </div>
+            <div class="dash-subtitle">Painel de Controle<br>GOMAP Engenharia</div>
+        </div>
+        """, unsafe_allow_html=True)
 
-        df_mov = load("mov")
-        df_prod = load("prod")
+        # ── Carregar dados ──────────────────────────────────────────────
+        df_mov   = load("mov")
+        df_prod  = load("prod")
         df_obras = load("obras")
-        df_loc = load("loc")
+        df_loc   = load("loc")
 
-        c1, c2, c3, c4, c5 = st.columns(5)
-        c1.metric("📦 Produtos", len(df_prod))
-        c2.metric("🏗️ Obras", len(df_obras))
-        c3.metric("📋 Lançamentos", len(df_mov))
-
-        # Calcular saldo geral (Compra + Entrada = entradas; Saída = saídas)
+        # ── Calcular métricas ───────────────────────────────────────────
         entradas = df_mov[df_mov["Tipo"].isin(["Compra", "Entrada"])]["Qtd"].sum() if len(df_mov) > 0 else 0
-        saidas = df_mov[df_mov["Tipo"] == "Saída"]["Qtd"].sum() if len(df_mov) > 0 else 0
-        c4.metric("📊 Saldo Geral", f"{entradas - saidas:.0f}")
+        saidas   = df_mov[df_mov["Tipo"] == "Saída"]["Qtd"].sum() if len(df_mov) > 0 else 0
+        saldo    = entradas - saidas
+        loc_ativas = (len(df_loc[df_loc["Status"] == "Ativo"])
+                      if len(df_loc) > 0 and "Status" in df_loc.columns else 0)
 
-        # Locações ativas
-        loc_ativas = len(df_loc[df_loc["Status"] == "Ativo"]) if len(df_loc) > 0 and "Status" in df_loc.columns else 0
-        c5.metric("🏗️ Locações Ativas", loc_ativas)
+        # Boletos de locações vencendo em ≤7 dias
+        loc_vencendo = 0
+        if len(df_loc) > 0 and "Venc_Boleto" in df_loc.columns and "Status" in df_loc.columns:
+            _df_la = df_loc[df_loc["Status"] == "Ativo"].copy()
+            _df_la["Venc_Boleto"] = pd.to_datetime(_df_la["Venc_Boleto"], errors="coerce")
+            _hoje_ts = pd.Timestamp(datetime.today().date())
+            _dias = (_df_la["Venc_Boleto"] - _hoje_ts).dt.days
+            loc_vencendo = int((_dias.between(0, 7)).sum())
 
-        st.divider()
+        # ── Metric cards ────────────────────────────────────────────────
+        def _mc(icon, value, label, color=None, badge=None):
+            c = color or AZUL_GOMAP
+            b = f'<div class="metric-badge">{badge}</div>' if badge else ""
+            return (f'<div class="metric-card" style="border-top-color:{c};">'
+                    f'{b}<div class="metric-icon">{icon}</div>'
+                    f'<div class="metric-value" style="color:{c};">{value}</div>'
+                    f'<div class="metric-label">{label}</div></div>')
 
+        _loc_color = "#e53e3e" if loc_vencendo > 0 else AZUL_GOMAP
+        m1, m2, m3, m4, m5 = st.columns(5)
+        m1.markdown(_mc("📦", len(df_prod),   "Produtos"),      unsafe_allow_html=True)
+        m2.markdown(_mc("🏗️", len(df_obras),  "Obras"),         unsafe_allow_html=True)
+        m3.markdown(_mc("📋", len(df_mov),    "Lançamentos"),   unsafe_allow_html=True)
+        m4.markdown(_mc("📊", f"{saldo:.0f}", "Saldo Geral",    color=AZUL_CLARO), unsafe_allow_html=True)
+        m5.markdown(_mc("🔑", loc_ativas,     "Locações Ativas",
+                        color=_loc_color,
+                        badge=loc_vencendo if loc_vencendo > 0 else None),
+                    unsafe_allow_html=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # ── Action cards ─────────────────────────────────────────────────
+        _CARDS = [
+            ("📝", "CADASTROS",   "Produtos, Categorias, Obras",     "#1a365d", "Cadastros"),
+            ("🔄", "LANÇAMENTOS", "Entrada / Saída / Transferência",  "#2a5298", "Movimentação"),
+            ("🔑", "LOCAÇÕES",    "Equipamentos Locados",             _loc_color, "Locacoes"),
+            ("📜", "RELATÓRIOS",  "Consultas e Filtros",              "#d69e2e", "Relatórios"),
+        ]
         col_a, col_b, col_c, col_d = st.columns(4)
-        with col_a:
-            st.markdown('<div class="card-painel">📝<br><b>CADASTROS</b><br><small>Produtos, Categorias, Obras</small></div>', unsafe_allow_html=True)
-            if st.button("ACESSAR CADASTROS", use_container_width=True):
-                ir_para("Cadastros")
-        with col_b:
-            st.markdown('<div class="card-painel">🔄<br><b>LANÇAMENTOS</b><br><small>Entrada / Saída / Transf.</small></div>', unsafe_allow_html=True)
-            if st.button("LANÇAR AGORA", use_container_width=True):
-                ir_para("Movimentação")
-        with col_c:
-            st.markdown('<div class="card-painel">🏗️<br><b>LOCAÇÕES</b><br><small>Equipamentos Locados</small></div>', unsafe_allow_html=True)
-            if st.button("GERENCIAR LOCAÇÕES", use_container_width=True):
-                ir_para("Locacoes")
-        with col_d:
-            st.markdown('<div class="card-painel">📜<br><b>RELATÓRIOS</b><br><small>Consultas e Filtros</small></div>', unsafe_allow_html=True)
-            if st.button("VER RELATÓRIOS", use_container_width=True):
-                ir_para("Relatórios")
+        for _col, (_icon, _title, _sub, _color, _page) in zip(
+                [col_a, col_b, col_c, col_d], _CARDS):
+            with _col:
+                _alerta = (f'<div class="action-alert">{loc_vencendo} vencendo</div>'
+                           if _page == "Locacoes" and loc_vencendo > 0 else "")
+                st.markdown(
+                    f'<div class="action-card" style="border-left-color:{_color};">'
+                    f'{_alerta}'
+                    f'<div class="action-icon" style="color:{_color};">{_icon}</div>'
+                    f'<div class="action-title" style="color:{_color};">{_title}</div>'
+                    f'<div class="action-subtitle">{_sub}</div></div>',
+                    unsafe_allow_html=True)
+                if st.button("Acessar →", use_container_width=True, key=f"dash_btn_{_page}"):
+                    ir_para(_page)
 
-        # Últimos lançamentos
+        # ── Gráficos Plotly ──────────────────────────────────────────────
+        if PLOTLY_OK and len(df_mov) > 0:
+            st.markdown("<br>", unsafe_allow_html=True)
+            _CORES = {
+                "Compra":       "#1a365d",
+                "Entrada":      "#38a169",
+                "Saída":        "#e53e3e",
+                "Transferência":"#d69e2e",
+            }
+            gcol_l, gcol_r = st.columns(2)
+
+            with gcol_l:
+                st.markdown("**📊 Distribuição por Tipo de Movimentação**")
+                _df_tipo = df_mov.groupby("Tipo")["Qtd"].sum().reset_index()
+                _df_tipo.columns = ["Tipo", "Quantidade"]
+                _fig_donut = px.pie(
+                    _df_tipo, values="Quantidade", names="Tipo",
+                    hole=0.5, color="Tipo", color_discrete_map=_CORES,
+                )
+                _fig_donut.update_layout(
+                    margin=dict(t=10, b=30, l=0, r=0), height=270,
+                    legend=dict(orientation="h", y=-0.18, x=0.5, xanchor="center"),
+                    paper_bgcolor="rgba(0,0,0,0)",
+                )
+                _fig_donut.update_traces(textposition="inside", textinfo="percent+label")
+                st.plotly_chart(_fig_donut, use_container_width=True)
+
+            with gcol_r:
+                st.markdown("**📈 Volume dos Últimos 6 Meses**")
+                _df_m = df_mov.copy()
+                _df_m["Data"] = pd.to_datetime(_df_m["Data"], errors="coerce")
+                _df_m = _df_m.dropna(subset=["Data"])
+                _hoje6 = pd.Timestamp(datetime.today().date())
+                _df_m = _df_m[_df_m["Data"] >= _hoje6 - pd.DateOffset(months=6)]
+                if len(_df_m) > 0:
+                    _df_m["Mês"] = _df_m["Data"].dt.to_period("M").astype(str)
+                    _df_mensal = _df_m.groupby(["Mês", "Tipo"])["Qtd"].sum().reset_index()
+                    _df_mensal.columns = ["Mês", "Tipo", "Quantidade"]
+                    _fig_bar = px.bar(
+                        _df_mensal, x="Mês", y="Quantidade", color="Tipo",
+                        color_discrete_map=_CORES, barmode="group",
+                    )
+                    _fig_bar.update_layout(
+                        margin=dict(t=10, b=30, l=0, r=0), height=270,
+                        legend=dict(orientation="h", y=-0.28, x=0.5, xanchor="center"),
+                        paper_bgcolor="rgba(0,0,0,0)",
+                        plot_bgcolor="rgba(0,0,0,0)",
+                        xaxis=dict(showgrid=False),
+                        yaxis=dict(gridcolor="rgba(0,0,0,0.06)"),
+                    )
+                    st.plotly_chart(_fig_bar, use_container_width=True)
+                else:
+                    st.info("Sem movimentações nos últimos 6 meses para exibir.")
+
+        # ── Últimos Lançamentos ──────────────────────────────────────────
         if len(df_mov) > 0:
             st.divider()
             st.markdown("**📋 Últimos Lançamentos**")
-            st.dataframe(fmt_datas(df_mov.tail(10).iloc[::-1]), width='stretch', hide_index=True)
+            st.dataframe(fmt_datas(df_mov.tail(10).iloc[::-1]),
+                         use_container_width=True, hide_index=True)
 
 
     # ══════════════════════════════════════════════════════
