@@ -1366,19 +1366,19 @@ else:
                     st.info("Sem movimentações registradas.")
 
             with gcol_m:
-                st.markdown("**📈 Volume — Últimos 6 Meses**")
+                st.markdown("**📈 Volume — Últimos 7 dias**")
                 if len(df_mov) > 0:
                     _df_m = df_mov.copy()
                     _df_m["Data"] = pd.to_datetime(_df_m["Data"], errors="coerce")
                     _df_m = _df_m.dropna(subset=["Data"])
-                    _hoje6 = pd.Timestamp(datetime.today().date())
-                    _df_m = _df_m[_df_m["Data"] >= _hoje6 - pd.DateOffset(months=6)]
+                    _hoje7 = pd.Timestamp(datetime.today().date())
+                    _df_m = _df_m[_df_m["Data"] >= _hoje7 - pd.Timedelta(days=7)]
                     if len(_df_m) > 0:
-                        _df_m["Mês"] = _df_m["Data"].dt.to_period("M").astype(str)
-                        _df_mensal = _df_m.groupby(["Mês", "Tipo"])["Qtd"].sum().reset_index()
-                        _df_mensal.columns = ["Mês", "Tipo", "Quantidade"]
+                        _df_m["Dia"] = _df_m["Data"].dt.strftime("%d/%m")
+                        _df_diario = _df_m.groupby(["Dia", "Tipo"])["Qtd"].sum().reset_index()
+                        _df_diario.columns = ["Dia", "Tipo", "Quantidade"]
                         _fig_bar = px.bar(
-                            _df_mensal, x="Mês", y="Quantidade", color="Tipo",
+                            _df_diario, x="Dia", y="Quantidade", color="Tipo",
                             color_discrete_map=_CORES, barmode="stack",
                         )
                         _fig_bar.update_layout(
@@ -1386,12 +1386,12 @@ else:
                             legend=dict(orientation="h", y=-0.28, x=0.5, xanchor="center"),
                             paper_bgcolor="rgba(0,0,0,0)",
                             plot_bgcolor="rgba(0,0,0,0)",
-                            xaxis=dict(showgrid=False),
+                            xaxis=dict(showgrid=False, type="category"),
                             yaxis=dict(gridcolor="rgba(0,0,0,0.06)"),
                         )
                         st.plotly_chart(_fig_bar, use_container_width=True)
                     else:
-                        st.info("Sem movimentações nos últimos 6 meses.")
+                        st.info("Sem movimentações nos últimos 7 dias.")
                 else:
                     st.info("Sem movimentações registradas.")
 
@@ -1431,19 +1431,18 @@ else:
                 )
                 st.plotly_chart(_fig_gauge, use_container_width=True)
 
-        # ── Movimentações dos Últimos 3 Dias ─────────────────────────────
+        # ── Últimos 7 Lançamentos ────────────────────────────────────────
         if len(df_mov) > 0:
             st.divider()
-            _df_mov3 = df_mov.copy()
-            _df_mov3["Data"] = pd.to_datetime(_df_mov3["Data"], errors="coerce")
-            _hoje3 = pd.Timestamp(datetime.today().date())
-            _df_mov3 = _df_mov3[_df_mov3["Data"] >= _hoje3 - pd.Timedelta(days=3)]
-            _df_mov3 = _df_mov3.sort_values("Data", ascending=False)
-            st.markdown(f"**📋 Movimentações dos Últimos 3 Dias** — {len(_df_mov3)} lançamento(s)")
-            if len(_df_mov3) > 0:
-                st.dataframe(fmt_datas(_df_mov3), use_container_width=True, hide_index=True)
-            else:
-                st.info("Nenhuma movimentação registrada nos últimos 3 dias.")
+            _df_mov7 = df_mov.copy()
+            _df_mov7["Data"] = pd.to_datetime(_df_mov7["Data"], errors="coerce")
+            _df_mov7 = _df_mov7.sort_values("Data", ascending=False).head(7)
+            st.markdown(f"**📋 Últimos 7 Lançamentos**")
+            _cols_user = [c for c in ["Data", "Tipo", "Material", "Categoria", "Unidade",
+                                      "Origem", "Destino", "Qtd", "Valor_Unit", "Valor_Total",
+                                      "Fornecedor", "Data_NF", "Num_NF", "Observacao", "Usuario"]
+                          if c in _df_mov7.columns]
+            st.dataframe(fmt_datas(_df_mov7[_cols_user]), use_container_width=True, hide_index=True)
 
 
     # ══════════════════════════════════════════════════════
@@ -2220,7 +2219,11 @@ else:
             if len(df_mov) > 0:
                 st.divider()
                 st.markdown("**📋 Últimos 15 Lançamentos**")
-                df_mov_show = fmt_datas(df_mov.tail(15).iloc[::-1])
+                _cols_mov_user = [c for c in ["Data", "Tipo", "Material", "Categoria", "Unidade",
+                                              "Origem", "Destino", "Qtd", "Valor_Unit", "Valor_Total",
+                                              "Fornecedor", "Data_NF", "Num_NF", "Observacao", "Usuario"]
+                                  if c in df_mov.columns]
+                df_mov_show = fmt_datas(df_mov.tail(15).iloc[::-1][_cols_mov_user])
                 st.dataframe(df_mov_show, width='stretch', hide_index=True)
 
                 ent_r = df_mov[df_mov["Tipo"].isin(["Compra", "Entrada"])]["Qtd"].sum()
