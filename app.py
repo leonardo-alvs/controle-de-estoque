@@ -26,12 +26,11 @@ except ImportError:
     PLOTLY_OK = False
 
 # --- 1. CONFIGURAÇÃO E ESTÉTICA GOMAP ---
-st.set_page_config(page_title="GOMAP Engenharia", layout="wide", page_icon="🏗️")
 
-# --- LOGO: Detecta e converte para base64 ---
+# Detecta logo ANTES do set_page_config para usar como favicon/ícone no celular
 LOGO_GOMAP = None
 LOGO_BASE64 = None
-for _nome in ["logogomap.png", "logogomap.png", "LogoGomap.png", "LOGOGOMAP.png", "logo_gomap.png", "logo.png"]:
+for _nome in ["logogomap.png", "LogoGomap.png", "LOGOGOMAP.png", "logo_gomap.png", "logo.png"]:
     if os.path.exists(_nome):
         LOGO_GOMAP = _nome
         break
@@ -43,6 +42,12 @@ if not LOGO_GOMAP:
 if LOGO_GOMAP:
     with open(LOGO_GOMAP, "rb") as _img:
         LOGO_BASE64 = base64.b64encode(_img.read()).decode()
+
+st.set_page_config(
+    page_title="GOMAP Engenharia",
+    layout="wide",
+    page_icon=LOGO_GOMAP if LOGO_GOMAP else "🏗️",
+)
 
 AZUL_GOMAP = "#1a365d"
 AZUL_CLARO = "#2a5298"
@@ -2009,7 +2014,7 @@ else:
             df_forn_list = load("forn")
             fornecedores_list = ["--- Selecione ---"] + sorted(df_forn_list["Nome_Fornecedor"].dropna().unique().tolist())
             locais = ["Almoxarifado Central"] + list(df_obras["Nome_Obra"].dropna().unique())
-            locais_saida = locais + ["Descarte", "Devolução Fornecedor", "Outro"]
+            locais_saida = locais + ["Consumo", "Perda/Extravio", "Devolução Fornecedor", "Outro"]
 
             with st.container(border=True):
                 st.markdown("**Nova Movimentação**")
@@ -3163,6 +3168,7 @@ div[data-testid="stHorizontalBlock"] div[data-testid="stDateInput"] > label {
             st.markdown("")
             if st.button("🏠 Voltar ao Painel", use_container_width=True, key="loc_voltar"):
                 ir_para("Início")
+
 
 
 
