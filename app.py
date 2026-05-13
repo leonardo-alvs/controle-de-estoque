@@ -566,6 +566,15 @@ def fmt_datas(df, cols=None):
             df_d[c] = pd.to_datetime(df_d[c], errors="coerce").dt.strftime("%d/%m/%Y").fillna("")
     return df_d
 
+COLS_MOV_USER = ["Data", "Tipo", "Material", "Categoria", "Unidade",
+                 "Origem", "Destino", "Qtd", "Valor_Unit", "Valor_Total",
+                 "Fornecedor", "Data_NF", "Num_NF", "Observacao", "Usuario"]
+
+def cols_mov_user(df):
+    """Filtra DataFrame de movimentações deixando apenas colunas visíveis ao usuário
+    (oculta FKs internos: id, product_id, category_id, unit_id, supplier_id, created_by)."""
+    return df[[c for c in COLS_MOV_USER if c in df.columns]]
+
 # --- CSS CUSTOMIZADO COMPLETO ---
 st.markdown(f"""
     <style>
@@ -2239,7 +2248,7 @@ else:
                 if REPORTLAB_OK:
                     pdf_bytes = gerar_pdf_relatorio(
                         "Lançamentos de Movimentação",
-                        fmt_datas(df_mov.iloc[::-1]).reset_index(drop=True),
+                        fmt_datas(cols_mov_user(df_mov.iloc[::-1])).reset_index(drop=True),
                         metricas_mov
                     )
                     st.download_button("🖨️ Exportar PDF — Todos os Lançamentos", pdf_bytes,
@@ -2248,7 +2257,7 @@ else:
                 else:
                     html_mov = gerar_html_relatorio(
                         "Lançamentos de Movimentação",
-                        fmt_datas(df_mov.iloc[::-1]).reset_index(drop=True),
+                        fmt_datas(cols_mov_user(df_mov.iloc[::-1])).reset_index(drop=True),
                         metricas_mov
                     )
                     st.download_button("🖨️ Exportar HTML — Todos os Lançamentos", html_mov,
@@ -2287,7 +2296,7 @@ else:
                 _mc3.metric("Saldo",    f"{_ent_fq - _sai_fq:.0f}")
                 _mc4.metric("Valor Total", f"R$ {_vt_fq:,.2f}")
 
-                _df_fq_show = fmt_datas(_df_fq.iloc[::-1])
+                _df_fq_show = fmt_datas(cols_mov_user(_df_fq.iloc[::-1]))
                 st.dataframe(_df_fq_show, width='stretch', hide_index=True)
 
                 if len(_df_fq) > 0:
@@ -2372,7 +2381,7 @@ else:
                     mg3.metric("Saldo", f"{ent_g - sai_g:.0f}")
                     mg4.metric("💰 Valor Total", f"R$ {vt_g:,.2f}")
 
-                    df_g_show = fmt_datas(df_g.iloc[::-1])
+                    df_g_show = fmt_datas(cols_mov_user(df_g.iloc[::-1]))
                     st.dataframe(df_g_show, width='stretch', hide_index=True)
 
                     if len(df_g) > 0:
@@ -2434,7 +2443,7 @@ else:
                     mo2.metric("Saídas", f"{sai_o:.0f}")
                     mo3.metric("Saldo", f"{ent_o - sai_o:.0f}")
 
-                    df_o_show = fmt_datas(df_o.iloc[::-1])
+                    df_o_show = fmt_datas(cols_mov_user(df_o.iloc[::-1]))
                     st.dataframe(df_o_show, width='stretch', hide_index=True)
 
                     if len(df_o) > 0:
@@ -2489,7 +2498,7 @@ else:
                     df_c = aplicar_filtro_periodo(df_c, "Data", fc_periodo, fc_ini, fc_fim)
 
                     st.markdown(f"**{len(df_c)} registro(s) encontrado(s)**")
-                    df_c_show = fmt_datas(df_c.iloc[::-1])
+                    df_c_show = fmt_datas(cols_mov_user(df_c.iloc[::-1]))
                     st.dataframe(df_c_show, width='stretch', hide_index=True)
 
                     if len(df_c) > 0:
@@ -2550,7 +2559,7 @@ else:
                     mp3.metric("Saldo", f"{ent_p - sai_p:.0f}")
                     mp4.metric("💰 Valor Total", f"R$ {vt_p:,.2f}")
 
-                    df_p_show = fmt_datas(df_p.iloc[::-1])
+                    df_p_show = fmt_datas(cols_mov_user(df_p.iloc[::-1]))
                     st.dataframe(df_p_show, width='stretch', hide_index=True)
 
                     if len(df_p) > 0:
@@ -2612,7 +2621,7 @@ else:
                     mt1.metric("Qtd Total Transferida", f"{qtd_t:.0f}")
                     mt2.metric("Registros", len(df_t))
 
-                    df_t_show = fmt_datas(df_t.iloc[::-1])
+                    df_t_show = fmt_datas(cols_mov_user(df_t.iloc[::-1]))
                     st.dataframe(df_t_show, width='stretch', hide_index=True)
 
                     if len(df_t) > 0:
