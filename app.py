@@ -2091,10 +2091,11 @@ else:
                         st.rerun()
 
             # Valores memorizados do último lançamento de Compra (mantidos entre lançamentos)
-            _last_tipo    = st.session_state.get("_last_compra_tipo", None)
-            _last_data_nf = st.session_state.get("_last_compra_data_nf", None)
-            _last_forn    = st.session_state.get("_last_compra_forn", None)
-            _last_num_nf  = st.session_state.get("_last_compra_num_nf", None)
+            _last_tipo     = st.session_state.get("_last_compra_tipo", None)
+            _last_data_nf  = st.session_state.get("_last_compra_data_nf", None)
+            _last_forn     = st.session_state.get("_last_compra_forn", None)
+            _last_num_nf   = st.session_state.get("_last_compra_num_nf", None)
+            _last_nf_total = float(st.session_state.get("_last_compra_nf_total") or 0.0)
 
             with st.container(border=True):
                 st.markdown("**Nova Movimentação**")
@@ -2126,9 +2127,10 @@ else:
                 forn_sel = ""
                 data_nf_val = None
                 num_nf_val = ""
+                nf_total_input = 0.0
                 if tipo_mov == "Compra":
                     st.markdown("**🧾 Dados da Nota Fiscal**")
-                    nf1, nf2, nf3 = st.columns(3)
+                    nf1, nf2, nf3, nf4 = st.columns([2, 1.2, 1.2, 1.2])
                     _idx_forn = fornecedores_list.index(_last_forn) if _last_forn in fornecedores_list else 0
                     forn_sel = nf1.selectbox("🏢 Fornecedor", fornecedores_list, index=_idx_forn, key=f"mov_forn_{_mk}")
                     _dt_nf_default = datetime.today()
@@ -2139,6 +2141,13 @@ else:
                             _dt_nf_default = datetime.today()
                     data_nf_val = nf2.date_input("📅 Data NF", value=_dt_nf_default, format="DD/MM/YYYY", key=f"mov_data_nf_{_mk}")
                     num_nf_val = nf3.text_input("🔢 Número NF", value=(_last_num_nf or ""), key=f"mov_num_nf_{_mk}")
+                    nf_total_input = nf4.number_input(
+                        "💰 Total da NF (R$)",
+                        min_value=0.0, step=0.01, format="%.2f",
+                        value=_last_nf_total,
+                        key=f"mov_nf_total_{_mk}",
+                        help="Total geral impresso na nota fiscal — usado para conferir se a soma dos lançamentos confere."
+                    )
                     # Cadastro rápido de fornecedor sem sair da tela
                     if st.button("➕ Cadastrar Novo Fornecedor", key=f"btn_novo_forn_{_mk}"):
                         dialog_novo_forn_mov()
@@ -2178,6 +2187,31 @@ else:
                 valor_total = round(qtd_mov * valor_unit, 2)
                 if valor_unit > 0 and qtd_mov > 0:
                     st.info(f"💵 **Valor Total: R$ {valor_total:,.2f}** ({qtd_mov:.2f} {un_auto} × R$ {valor_unit:.2f})")
+
+                # Conferência do Total da NF (Compra) — soma já gravada para a mesma NF + esta entrada
+                if tipo_mov == "Compra" and forn_sel and forn_sel != "--- Selecione ---" and str(num_nf_val).strip():
+                    _df_nf = load("mov")
+                    _acum_nf = 0.0
+                    if len(_df_nf) > 0 and "Fornecedor" in _df_nf.columns and "Num_NF" in _df_nf.columns:
+                        _mask_nf = (
+                            (_df_nf["Fornecedor"].astype(str) == str(forn_sel)) &
+                            (_df_nf["Num_NF"].astype(str).str.strip() == str(num_nf_val).strip()) &
+                            (_df_nf["Tipo"] == "Compra")
+                        )
+                        _acum_nf = float(pd.to_numeric(_df_nf.loc[_mask_nf, "Valor_Total"], errors="coerce").fillna(0).sum())
+                    _soma_com_atual = _acum_nf + float(valor_total)
+                    _txt = (f"🧾 **NF {num_nf_val}** — Já lançado: **R$ {_acum_nf:,.2f}**  •  "
+                            f"Esta entrada: **R$ {valor_total:,.2f}**  •  "
+                            f"Total acumulado: **R$ {_soma_com_atual:,.2f}**")
+                    if nf_total_input > 0:
+                        _dif_nf = _soma_com_atual - nf_total_input
+                        if abs(_dif_nf) < 0.005:
+                            st.success(f"{_txt}  •  ✅ Bate com o Total da NF (R$ {nf_total_input:,.2f})")
+                        else:
+                            _dif_str = f"+R$ {_dif_nf:,.2f}" if _dif_nf > 0 else f"-R$ {abs(_dif_nf):,.2f}"
+                            st.warning(f"{_txt}  •  ⚠️ Diferença vs. Total da NF (R$ {nf_total_input:,.2f}): **{_dif_str}**")
+                    else:
+                        st.info(_txt)
 
                 # Campos específicos de ajuste (Correção de Digitação / Acerto de Estoque)
                 justificativa_mov = ""
@@ -2312,18 +2346,21 @@ else:
                             st.success(f"✅ {tipo_mov} de {_qtd_final:.2f} {un_auto} de '{material_sel}' em '{_local_ref}' registrado!")
                             # Memoriza dados da NF para próximo lançamento (mesma compra com vários produtos)
                             if tipo_mov == "Compra":
-                                st.session_state._last_compra_tipo    = "Compra"
-                                st.session_state._last_compra_data_nf = data_nf_val.strftime("%Y-%m-%d") if data_nf_val else None
-                                st.session_state._last_compra_forn    = forn_sel if forn_sel and forn_sel != "--- Selecione ---" else None
-                                st.session_state._last_compra_num_nf  = num_nf_val or None
+                                st.session_state._last_compra_tipo     = "Compra"
+                                st.session_state._last_compra_data_nf  = data_nf_val.strftime("%Y-%m-%d") if data_nf_val else None
+                                st.session_state._last_compra_forn     = forn_sel if forn_sel and forn_sel != "--- Selecione ---" else None
+                                st.session_state._last_compra_num_nf   = num_nf_val or None
+                                st.session_state._last_compra_nf_total = float(nf_total_input) if nf_total_input else 0.0
                             else:
-                                for _k in ("_last_compra_tipo", "_last_compra_data_nf", "_last_compra_forn", "_last_compra_num_nf"):
+                                for _k in ("_last_compra_tipo", "_last_compra_data_nf", "_last_compra_forn",
+                                           "_last_compra_num_nf", "_last_compra_nf_total"):
                                     st.session_state.pop(_k, None)
                             st.session_state.mov_form_key = _mk + 1
                             st.rerun()
 
                 if b2.button("❌ Limpar", use_container_width=True):
-                    for _k in ("_last_compra_tipo", "_last_compra_data_nf", "_last_compra_forn", "_last_compra_num_nf"):
+                    for _k in ("_last_compra_tipo", "_last_compra_data_nf", "_last_compra_forn",
+                               "_last_compra_num_nf", "_last_compra_nf_total"):
                         st.session_state.pop(_k, None)
                     st.session_state.mov_form_key = _mk + 1
                     st.rerun()
@@ -3270,8 +3307,6 @@ div[data-testid="stHorizontalBlock"] div[data-testid="stDateInput"] > label {
             st.markdown("")
             if st.button("🏠 Voltar ao Painel", use_container_width=True, key="loc_voltar"):
                 ir_para("Início")
-
-
 
 
 
