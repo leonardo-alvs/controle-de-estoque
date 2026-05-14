@@ -2836,11 +2836,12 @@ div[data-testid="stHorizontalBlock"] div[data-testid="stDateInput"] > label {
             else:
                 st.divider()
                 # Calcular saldo por material e destino/origem
-                _tipos_ent_est = ["Compra", "Entrada", "Correção de Digitação", "Acerto de Estoque"]
+                # Transferência entra no Destino e sai da Origem (lançada nos dois lados)
+                _tipos_ent_est = ["Compra", "Entrada", "Correção de Digitação", "Acerto de Estoque", "Transferência"]
                 entradas = df_mov_fil[df_mov_fil["Tipo"].isin(_tipos_ent_est)].groupby(["Material", "Destino"])["Qtd"].sum().reset_index()
                 entradas.columns = ["Material", "Local", "Entrada"]
 
-                _tipos_sai_est = ["Saída", "Correção de Digitação", "Acerto de Estoque"]
+                _tipos_sai_est = ["Saída", "Correção de Digitação", "Acerto de Estoque", "Transferência"]
                 saidas = df_mov_fil[df_mov_fil["Tipo"].isin(_tipos_sai_est)].groupby(["Material", "Origem"])["Qtd"].sum().reset_index()
                 saidas.columns = ["Material", "Local", "Saída"]
 
@@ -3292,6 +3293,5 @@ div[data-testid="stHorizontalBlock"] div[data-testid="stDateInput"] > label {
             st.markdown("")
             if st.button("🏠 Voltar ao Painel", use_container_width=True, key="loc_voltar"):
                 ir_para("Início")
-
 
 
