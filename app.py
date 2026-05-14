@@ -106,6 +106,36 @@ def get_permissao(perfil, acao):
     return False
 
 
+def _cnpj_digits(cnpj):
+    return "".join(ch for ch in str(cnpj or "") if ch.isdigit())
+
+
+def validar_cnpj(cnpj):
+    """Valida CNPJ (14 dígitos + dígitos verificadores). Aceita formatado ou só números."""
+    c = _cnpj_digits(cnpj)
+    if len(c) != 14 or c == c[0] * 14:
+        return False
+    pesos1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
+    pesos2 = [6] + pesos1
+    s1 = sum(int(c[i]) * pesos1[i] for i in range(12))
+    d1 = 11 - (s1 % 11)
+    d1 = 0 if d1 >= 10 else d1
+    if int(c[12]) != d1:
+        return False
+    s2 = sum(int(c[i]) * pesos2[i] for i in range(13))
+    d2 = 11 - (s2 % 11)
+    d2 = 0 if d2 >= 10 else d2
+    return int(c[13]) == d2
+
+
+def formatar_cnpj(cnpj):
+    """Formata CNPJ em 00.000.000/0000-00. Se inválido em tamanho, retorna como veio."""
+    c = _cnpj_digits(cnpj)
+    if len(c) != 14:
+        return str(cnpj or "")
+    return f"{c[0:2]}.{c[2:5]}.{c[5:8]}/{c[8:12]}-{c[12:14]}"
+
+
 def get_db_url():
     postgresql = None
     if hasattr(st, "secrets"):
@@ -1821,6 +1851,12 @@ else:
                 forn_nome    = fa1.text_input("🏢 Nome / Razão Social *", key=f"forn_nome_{_fk}")
                 forn_cnpj    = fa2.text_input("CNPJ", placeholder="00.000.000/0000-00", key=f"forn_cnpj_{_fk}")
                 forn_ie      = fa3.text_input("Inscrição Estadual", key=f"forn_ie_{_fk}")
+                # Feedback de validação do CNPJ em tempo real
+                if forn_cnpj:
+                    if validar_cnpj(forn_cnpj):
+                        fa2.caption(f"✅ CNPJ válido: {formatar_cnpj(forn_cnpj)}")
+                    else:
+                        fa2.caption("⚠️ CNPJ inválido — verifique os dígitos.")
 
                 # Linha 2: Contato + Telefone + Celular + E-mail
                 fb1, fb2, fb3, fb4 = st.columns(4)
@@ -1845,11 +1881,15 @@ else:
 
                 b_inc, b_can, b_sai = st.columns(3)
                 if b_inc.button("✅ Incluir Fornecedor", type="primary", use_container_width=True):
-                    if forn_nome:
+                    if not forn_nome:
+                        st.warning("Preencha o nome do fornecedor.")
+                    elif forn_cnpj.strip() and not validar_cnpj(forn_cnpj):
+                        st.error("❌ CNPJ inválido. Corrija os dígitos ou deixe em branco.")
+                    else:
                         df = load("forn")
                         novo = pd.DataFrame([{
                             "Nome_Fornecedor": forn_nome.strip().upper(),
-                            "CNPJ":            forn_cnpj.strip(),
+                            "CNPJ":            formatar_cnpj(forn_cnpj) if forn_cnpj.strip() else "",
                             "Insc_Estadual":   forn_ie.strip(),
                             "Telefone":        forn_tel.strip(),
                             "Celular":         forn_cel.strip(),
@@ -1867,8 +1907,6 @@ else:
                         st.success(f"✅ Fornecedor '{forn_nome.upper()}' cadastrado!")
                         st.session_state.forn_form_key = _fk + 1
                         st.rerun()
-                    else:
-                        st.warning("Preencha o nome do fornecedor.")
                 if b_can.button("❌ Cancelar", use_container_width=True, key="can_forn"):
                     st.session_state.forn_form_key = _fk + 1
                     st.rerun()
@@ -1924,6 +1962,11 @@ else:
                             alt_fnome   = aa1.text_input("🏢 Nome / Razão Social *", value=_sv(row_alt_f.get("Nome_Fornecedor","")), key=f"alt_fnome_{idx_alt_f}")
                             alt_fcnpj   = aa2.text_input("CNPJ", value=_sv(row_alt_f.get("CNPJ","")), key=f"alt_fcnpj_{idx_alt_f}")
                             alt_fie     = aa3.text_input("Inscrição Estadual", value=_sv(row_alt_f.get("Insc_Estadual","")), key=f"alt_fie_{idx_alt_f}")
+                            if alt_fcnpj:
+                                if validar_cnpj(alt_fcnpj):
+                                    aa2.caption(f"✅ CNPJ válido: {formatar_cnpj(alt_fcnpj)}")
+                                else:
+                                    aa2.caption("⚠️ CNPJ inválido — verifique os dígitos.")
 
                             ab1, ab2, ab3, ab4 = st.columns(4)
                             alt_fcontato = ab1.text_input("👤 Contato", value=_sv(row_alt_f.get("Contato","")), key=f"alt_fcontato_{idx_alt_f}")
@@ -1945,9 +1988,13 @@ else:
                             alt_fobs = st.text_area("📝 Observações", value=_sv(row_alt_f.get("Observacao","")), height=80, key=f"alt_fobs_{idx_alt_f}")
 
                             if st.button("💾 Salvar Alteração", type="primary", use_container_width=True, key="save_alt_forn"):
-                                if alt_fnome:
+                                if not alt_fnome:
+                                    st.warning("Preencha o nome do fornecedor.")
+                                elif alt_fcnpj.strip() and not validar_cnpj(alt_fcnpj):
+                                    st.error("❌ CNPJ inválido. Corrija os dígitos ou deixe em branco.")
+                                else:
                                     df_forn.loc[idx_alt_f, "Nome_Fornecedor"] = alt_fnome.strip().upper()
-                                    df_forn.loc[idx_alt_f, "CNPJ"]           = alt_fcnpj.strip()
+                                    df_forn.loc[idx_alt_f, "CNPJ"]           = formatar_cnpj(alt_fcnpj) if alt_fcnpj.strip() else ""
                                     df_forn.loc[idx_alt_f, "Insc_Estadual"]  = alt_fie.strip()
                                     df_forn.loc[idx_alt_f, "Telefone"]       = alt_ftel.strip()
                                     df_forn.loc[idx_alt_f, "Celular"]        = alt_fcel.strip()
@@ -1962,8 +2009,6 @@ else:
                                     save(df_forn, "forn")
                                     st.success("✅ Fornecedor alterado com sucesso!")
                                     st.rerun()
-                                else:
-                                    st.warning("Preencha o nome do fornecedor.")
 
                         with st.expander("🗑️ Excluir Fornecedor"):
                             idx_del = st.selectbox("Selecione:", df_forn_s.index,
@@ -2016,6 +2061,41 @@ else:
             locais = ["Almoxarifado Central"] + list(df_obras["Nome_Obra"].dropna().unique())
             locais_saida = locais + ["Consumo", "Perda/Extravio", "Devolução Fornecedor", "Outro"]
 
+            # Dialog de cadastro rápido de Fornecedor (sem sair da tela de Lançamento)
+            @st.dialog("➕ Novo Fornecedor")
+            def dialog_novo_forn_mov():
+                fn = st.text_input("Nome / Razão Social *", key="dlg_mov_fn")
+                fc1, fc2 = st.columns(2)
+                cnpj_in = fc1.text_input("CNPJ", placeholder="00.000.000/0000-00", key="dlg_mov_cnpj")
+                tel_in  = fc2.text_input("Telefone", key="dlg_mov_tel")
+                contato_in = st.text_input("Pessoa de Contato", key="dlg_mov_contato")
+                if cnpj_in and not validar_cnpj(cnpj_in):
+                    st.warning("⚠️ CNPJ inválido — verifique os números digitados.")
+                if st.button("✅ Salvar Fornecedor", type="primary", use_container_width=True, key="dlg_mov_sv"):
+                    if not fn.strip():
+                        st.warning("Informe o nome do fornecedor.")
+                    elif cnpj_in and not validar_cnpj(cnpj_in):
+                        st.error("❌ CNPJ inválido. Corrija ou deixe em branco.")
+                    else:
+                        df = load("forn")
+                        save(_concat_safe([df, pd.DataFrame([{
+                            "Nome_Fornecedor": fn.strip().upper(),
+                            "CNPJ":            formatar_cnpj(cnpj_in) if cnpj_in else "",
+                            "Telefone":        tel_in.strip(),
+                            "Contato":         contato_in.strip(),
+                            "Data_Cadastro":   datetime.today().strftime("%Y-%m-%d"),
+                        }])]), "forn")
+                        # Memorizar para selecionar automaticamente após o rerun
+                        st.session_state._last_compra_forn = fn.strip().upper()
+                        st.success(f"✅ Fornecedor '{fn.strip().upper()}' cadastrado!")
+                        st.rerun()
+
+            # Valores memorizados do último lançamento de Compra (mantidos entre lançamentos)
+            _last_tipo    = st.session_state.get("_last_compra_tipo", None)
+            _last_data_nf = st.session_state.get("_last_compra_data_nf", None)
+            _last_forn    = st.session_state.get("_last_compra_forn", None)
+            _last_num_nf  = st.session_state.get("_last_compra_num_nf", None)
+
             with st.container(border=True):
                 st.markdown("**Nova Movimentação**")
 
@@ -2024,7 +2104,8 @@ else:
                 _tipos_mov = ["Compra", "Entrada", "Saída", "Transferência"]
                 if st.session_state.get("usuario_perfil") == "admin":
                     _tipos_mov += ["Correção de Digitação", "Acerto de Estoque"]
-                tipo_mov = c2.selectbox("📋 Tipo", _tipos_mov, key=f"mov_tipo_{_mk}",
+                _idx_tipo = _tipos_mov.index(_last_tipo) if _last_tipo in _tipos_mov else 0
+                tipo_mov = c2.selectbox("📋 Tipo", _tipos_mov, index=_idx_tipo, key=f"mov_tipo_{_mk}",
                     help="Compra = entrada via fornecedor (NF) | Entrada = devolução/ajuste | Saída = consumo/obra | Transferência = entre locais | Correção/Acerto = somente admin")
 
                 # Material com categoria e unidade automáticos
@@ -2048,9 +2129,19 @@ else:
                 if tipo_mov == "Compra":
                     st.markdown("**🧾 Dados da Nota Fiscal**")
                     nf1, nf2, nf3 = st.columns(3)
-                    forn_sel = nf1.selectbox("🏢 Fornecedor", fornecedores_list, key=f"mov_forn_{_mk}")
-                    data_nf_val = nf2.date_input("📅 Data NF", value=datetime.today(), format="DD/MM/YYYY", key=f"mov_data_nf_{_mk}")
-                    num_nf_val = nf3.text_input("🔢 Número NF", key=f"mov_num_nf_{_mk}")
+                    _idx_forn = fornecedores_list.index(_last_forn) if _last_forn in fornecedores_list else 0
+                    forn_sel = nf1.selectbox("🏢 Fornecedor", fornecedores_list, index=_idx_forn, key=f"mov_forn_{_mk}")
+                    _dt_nf_default = datetime.today()
+                    if _last_data_nf:
+                        try:
+                            _dt_nf_default = datetime.strptime(_last_data_nf, "%Y-%m-%d")
+                        except Exception:
+                            _dt_nf_default = datetime.today()
+                    data_nf_val = nf2.date_input("📅 Data NF", value=_dt_nf_default, format="DD/MM/YYYY", key=f"mov_data_nf_{_mk}")
+                    num_nf_val = nf3.text_input("🔢 Número NF", value=(_last_num_nf or ""), key=f"mov_num_nf_{_mk}")
+                    # Cadastro rápido de fornecedor sem sair da tela
+                    if st.button("➕ Cadastrar Novo Fornecedor", key=f"btn_novo_forn_{_mk}"):
+                        dialog_novo_forn_mov()
 
                 # Origem / Destino por tipo
                 local_ajuste = ""
@@ -2219,10 +2310,21 @@ else:
                                 st.stop()
                             _local_ref = local_ajuste or destino_mov
                             st.success(f"✅ {tipo_mov} de {_qtd_final:.2f} {un_auto} de '{material_sel}' em '{_local_ref}' registrado!")
+                            # Memoriza dados da NF para próximo lançamento (mesma compra com vários produtos)
+                            if tipo_mov == "Compra":
+                                st.session_state._last_compra_tipo    = "Compra"
+                                st.session_state._last_compra_data_nf = data_nf_val.strftime("%Y-%m-%d") if data_nf_val else None
+                                st.session_state._last_compra_forn    = forn_sel if forn_sel and forn_sel != "--- Selecione ---" else None
+                                st.session_state._last_compra_num_nf  = num_nf_val or None
+                            else:
+                                for _k in ("_last_compra_tipo", "_last_compra_data_nf", "_last_compra_forn", "_last_compra_num_nf"):
+                                    st.session_state.pop(_k, None)
                             st.session_state.mov_form_key = _mk + 1
                             st.rerun()
 
                 if b2.button("❌ Limpar", use_container_width=True):
+                    for _k in ("_last_compra_tipo", "_last_compra_data_nf", "_last_compra_forn", "_last_compra_num_nf"):
+                        st.session_state.pop(_k, None)
                     st.session_state.mov_form_key = _mk + 1
                     st.rerun()
                 if b3.button("🏠 Voltar ao Painel", use_container_width=True):
@@ -2712,7 +2814,7 @@ div[data-testid="stHorizontalBlock"] div[data-testid="stDateInput"] > label {
             else:
                 st.divider()
                 # Calcular saldo por material e destino/origem
-                _tipos_ent_est = ["Entrada", "Correção de Digitação", "Acerto de Estoque"]
+                _tipos_ent_est = ["Compra", "Entrada", "Correção de Digitação", "Acerto de Estoque"]
                 entradas = df_mov_fil[df_mov_fil["Tipo"].isin(_tipos_ent_est)].groupby(["Material", "Destino"])["Qtd"].sum().reset_index()
                 entradas.columns = ["Material", "Local", "Entrada"]
 
