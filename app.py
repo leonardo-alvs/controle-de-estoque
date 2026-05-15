@@ -3024,6 +3024,37 @@ div[data-testid="stHorizontalBlock"] div[data-testid="stDateInput"] > label {
                             st.success(f"✅ Usuário '{usr_toggle}' {'ativado' if not status_atual else 'desativado'}!")
                             st.rerun()
 
+            # --- Editar dados do usuário (nome / perfil) ---
+            with st.expander("✏️ Editar Dados do Usuário"):
+                usr_edit = st.selectbox("Selecione o usuário:", df_users["usuario"].values, key="edit_usr")
+                _row_edit = df_users.loc[df_users["usuario"] == usr_edit].iloc[0]
+                _nome_atual = str(_row_edit.get("nome", "") or "")
+                _perfil_atual = str(_row_edit.get("perfil", "") or "")
+
+                ec1, ec2 = st.columns(2)
+                novo_nome_edit = ec1.text_input("Nome completo", value=_nome_atual, key="edit_nome")
+                _perfis_disp_edit = list(PERFIS.keys())
+                _idx_perfil = _perfis_disp_edit.index(_perfil_atual) if _perfil_atual in _perfis_disp_edit else 0
+                novo_perfil_edit = ec2.selectbox(
+                    "Perfil",
+                    _perfis_disp_edit,
+                    index=_idx_perfil,
+                    format_func=lambda p: f"{p} — {PERFIS[p]['descricao'].split('—')[1].strip()}",
+                    key="edit_perfil",
+                )
+
+                if st.button("💾 Salvar Alterações", type="primary", use_container_width=True, key="edit_save"):
+                    if not novo_nome_edit.strip():
+                        st.warning("O nome não pode ficar em branco.")
+                    elif usr_edit == st.session_state.usuario_login and novo_perfil_edit != _perfil_atual:
+                        st.error("Você não pode alterar o próprio perfil.")
+                    else:
+                        df_users.loc[df_users["usuario"] == usr_edit, "nome"] = novo_nome_edit.strip()
+                        df_users.loc[df_users["usuario"] == usr_edit, "perfil"] = novo_perfil_edit
+                        save_usuarios(df_users)
+                        st.success(f"✅ Dados de '{usr_edit}' atualizados!")
+                        st.rerun()
+
 
     # ══════════════════════════════════════════════════════
     #         PÁGINA: LOCAÇÃO DE EQUIPAMENTOS
