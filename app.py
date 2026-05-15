@@ -3024,35 +3024,58 @@ div[data-testid="stHorizontalBlock"] div[data-testid="stDateInput"] > label {
                             st.success(f"✅ Usuário '{usr_toggle}' {'ativado' if not status_atual else 'desativado'}!")
                             st.rerun()
 
-            # --- Editar dados do usuário (nome / perfil) ---
+            # --- Editar dados do usuário (login / nome / perfil / senha) ---
             with st.expander("✏️ Editar Dados do Usuário"):
                 usr_edit = st.selectbox("Selecione o usuário:", df_users["usuario"].values, key="edit_usr")
                 _row_edit = df_users.loc[df_users["usuario"] == usr_edit].iloc[0]
+                _login_atual = str(_row_edit.get("usuario", "") or "")
                 _nome_atual = str(_row_edit.get("nome", "") or "")
                 _perfil_atual = str(_row_edit.get("perfil", "") or "")
 
                 ec1, ec2 = st.columns(2)
-                novo_nome_edit = ec1.text_input("Nome completo", value=_nome_atual, key="edit_nome")
+                novo_login_edit = ec1.text_input("Login do usuário (raiz)", value=_login_atual, key="edit_login")
+                novo_nome_edit = ec2.text_input("Nome completo", value=_nome_atual, key="edit_nome")
+
+                ec3, ec4 = st.columns(2)
                 _perfis_disp_edit = list(PERFIS.keys())
                 _idx_perfil = _perfis_disp_edit.index(_perfil_atual) if _perfil_atual in _perfis_disp_edit else 0
-                novo_perfil_edit = ec2.selectbox(
+                novo_perfil_edit = ec3.selectbox(
                     "Perfil",
                     _perfis_disp_edit,
                     index=_idx_perfil,
                     format_func=lambda p: f"{p} — {PERFIS[p]['descricao'].split('—')[1].strip()}",
                     key="edit_perfil",
                 )
+                nova_senha_edit = ec4.text_input(
+                    "Nova senha (deixe em branco para manter)",
+                    type="password",
+                    key="edit_senha",
+                    placeholder="Mínimo 4 caracteres",
+                )
 
                 if st.button("💾 Salvar Alterações", type="primary", use_container_width=True, key="edit_save"):
-                    if not novo_nome_edit.strip():
+                    _login_novo = novo_login_edit.lower().strip()
+                    _outros_logins = df_users.loc[df_users["usuario"] != usr_edit, "usuario"].values
+                    if not _login_novo:
+                        st.warning("O login não pode ficar em branco.")
+                    elif not novo_nome_edit.strip():
                         st.warning("O nome não pode ficar em branco.")
+                    elif _login_novo != _login_atual and _login_novo in _outros_logins:
+                        st.error(f"❌ O login '{_login_novo}' já existe em outro usuário.")
+                    elif usr_edit == st.session_state.usuario_login and _login_novo != _login_atual:
+                        st.error("Você não pode alterar o próprio login (use outra conta admin).")
                     elif usr_edit == st.session_state.usuario_login and novo_perfil_edit != _perfil_atual:
                         st.error("Você não pode alterar o próprio perfil.")
+                    elif nova_senha_edit and len(nova_senha_edit) < 4:
+                        st.warning("A senha deve ter no mínimo 4 caracteres.")
                     else:
                         df_users.loc[df_users["usuario"] == usr_edit, "nome"] = novo_nome_edit.strip()
                         df_users.loc[df_users["usuario"] == usr_edit, "perfil"] = novo_perfil_edit
+                        df_users.loc[df_users["usuario"] == usr_edit, "usuario"] = _login_novo
+                        if nova_senha_edit:
+                            df_users.loc[df_users["usuario"] == _login_novo, "senha_hash"] = hashlib.sha256(nova_senha_edit.encode()).hexdigest()
                         save_usuarios(df_users)
-                        st.success(f"✅ Dados de '{usr_edit}' atualizados!")
+                        st.success(f"✅ Dados de '{_login_novo}' atualizados!")
                         st.rerun()
 
 
@@ -3324,5 +3347,6 @@ div[data-testid="stHorizontalBlock"] div[data-testid="stDateInput"] > label {
             st.markdown("")
             if st.button("🏠 Voltar ao Painel", use_container_width=True, key="loc_voltar"):
                 ir_para("Início")
+
 
 
